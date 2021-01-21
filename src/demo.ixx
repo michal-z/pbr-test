@@ -36,7 +36,6 @@ struct DEMO_STATE {
     eastl::vector<MESH> meshes;
     eastl::vector<RENDERABLE> renderables;
     U32 num_renderables_to_draw;
-    bool use_mesh_shader;
     bool enable_debug_draw;
     struct {
         ID2D1_SOLID_COLOR_BRUSH* brush;
@@ -320,12 +319,6 @@ void Update_Demo_State(DEMO_STATE* demo) {
         NULL,
         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings
     );
-    {
-        S32 res = demo->use_mesh_shader ? 1 : 0;
-        ImGui::RadioButton("Vertex shader", &res, 0);
-        ImGui::RadioButton("Mesh shader", &res, 1);
-        demo->use_mesh_shader = (res == 1);
-    }
     ImGui::SliderInt(
         "Number of objects",
         (S32*)&demo->num_renderables_to_draw,
