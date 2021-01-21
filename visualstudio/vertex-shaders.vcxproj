@@ -43,7 +43,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <FxCompile>
-      <ShaderModel>6.5</ShaderModel>
+      <ShaderModel>6.0</ShaderModel>
       <EntryPointName>Vertex_Shader</EntryPointName>
       <ShaderType>Vertex</ShaderType>
       <ObjectFileOutput>$(OutDir)data\shaders\%(Filename).vs.cso</ObjectFileOutput>
@@ -57,7 +57,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <FxCompile>
-      <ShaderModel>6.5</ShaderModel>
+      <ShaderModel>6.0</ShaderModel>
       <EntryPointName>Vertex_Shader</EntryPointName>
       <ShaderType>Vertex</ShaderType>
       <ObjectFileOutput>$(OutDir)data\shaders\%(Filename).vs.cso</ObjectFileOutput>

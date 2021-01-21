@@ -59,13 +59,13 @@ template<typename T> const T* Get_Const_Ptr(const T& obj) {
 #define MZ_UNIQUE_NAME(prefix) MZ_CONCAT(prefix, __COUNTER__)
 #define MZ_DEFER(...) auto MZ_UNIQUE_NAME(_mz_defer__) = eastl::make_finally([&]{ __VA_ARGS__; })
 
-template <typename T, typename... Ts>
+template<typename T, typename... Ts>
 using TUPLE = eastl::tuple<T, Ts...>;
 
-template <typename T, size_t Extent = eastl::dynamic_extent>
+template<typename T, size_t Extent = eastl::dynamic_extent>
 using SPAN = eastl::span<T, Extent>;
 
-template <typename T, typename Allocator = EASTLAllocatorType>
+template<typename T, typename Allocator = EASTLAllocatorType>
 using VECTOR = eastl::vector<T, Allocator>;
 
 template<typename Key,
@@ -87,9 +87,9 @@ typedef unsigned long long U64;
 typedef float F32;
 typedef double F64;
 
-typedef ID3D12Device8 ID3D12_DEVICE;
+typedef ID3D12Device3 ID3D12_DEVICE;
 typedef ID3D12CommandList ID3D12_COMMAND_LIST;
-typedef ID3D12GraphicsCommandList6 ID3D12_GRAPHICS_COMMAND_LIST;
+typedef ID3D12GraphicsCommandList2 ID3D12_GRAPHICS_COMMAND_LIST;
 typedef ID3D12Resource ID3D12_RESOURCE;
 typedef ID3D12CommandQueue ID3D12_COMMAND_QUEUE;
 typedef ID3D12CommandAllocator ID3D12_COMMAND_ALLOCATOR;
@@ -112,7 +112,7 @@ typedef ID2D1SolidColorBrush ID2D1_SOLID_COLOR_BRUSH;
 typedef ID3D11Device ID3D11_DEVICE;
 typedef ID3D11DeviceContext ID3D11_DEVICE_CONTEXT;
 typedef ID3D11Resource ID3D11_RESOURCE;
-typedef ID3D11On12Device2 ID3D11ON12_DEVICE;
+typedef ID3D11On12Device ID3D11ON12_DEVICE;
 
 typedef IDWriteFactory7 IDWRITE_FACTORY;
 typedef IDWriteTextFormat IDWRITE_TEXT_FORMAT;
