@@ -283,7 +283,6 @@ export void Init_Gui_Context(IMGUI_CONTEXT* gui, graphics::CONTEXT* gr) {
     io->KeyMap[ImGuiKey_Y] = 'Y';
     io->KeyMap[ImGuiKey_Z] = 'Z';
     io->ImeWindowHandle = gr->window;
-    io->RenderDrawListsFn = NULL;
     io->DisplaySize = ImVec2((F32)gr->viewport_width, (F32)gr->viewport_height);
     ImGui::GetStyle().WindowRounding = 0.0f;
 

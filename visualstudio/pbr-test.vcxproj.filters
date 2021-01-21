@@ -51,6 +51,9 @@
     <ClCompile Include="..\src\external\EASTL\source\thread_support.cpp">
       <Filter>external\EASTL\source</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\external\imgui\imgui_tables.cpp">
+      <Filter>external\imgui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="external">
