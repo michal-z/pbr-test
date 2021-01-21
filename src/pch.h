@@ -4,6 +4,7 @@
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")
 #pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "windowscodecs.lib")
 
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
@@ -15,6 +16,7 @@
 #include <d3d11on12.h>
 #include <d2d1_3.h>
 #include <dwrite_3.h>
+#include <wincodec.h>
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>

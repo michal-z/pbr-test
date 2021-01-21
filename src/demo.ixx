@@ -309,6 +309,8 @@ void Update_Demo_State(DEMO_STATE* demo) {
     library::Update_Frame_Stats(&demo->frame_stats);
     library::Update_Gui(demo->frame_stats.delta_time);
 
+    ImGui::ShowDemoWindow();
+
     ImGui::SetNextWindowPos(
         ImVec2(demo->graphics.viewport_width - 600.0f - 20.0f, 20.0f),
         ImGuiCond_FirstUseEver

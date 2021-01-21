@@ -293,6 +293,7 @@ export struct CONTEXT {
     GPU_MEMORY_HEAP upload_heaps[max_num_frames_in_flight];
     VECTOR<D3D12_RESOURCE_BARRIER> buffered_resource_barriers;
     RESOURCE_POOL resource_pool;
+    IWICImagingFactory* wic_factory;
     struct {
         PIPELINE_POOL pool;
         PIPELINE_HANDLE current;
@@ -315,6 +316,12 @@ export bool Init_Context(CONTEXT* gr, HWND window) {
     assert(gr && window);
 
     CoInitialize(NULL);
+    VHR(CoCreateInstance(
+        CLSID_WICImagingFactory,
+        NULL,
+        CLSCTX_INPROC_SERVER,
+        IID_PPV_ARGS(&gr->wic_factory)
+    ));
 
     RECT rect;
     GetClientRect(window, &rect);
@@ -536,6 +543,7 @@ export void Deinit_Context(CONTEXT* gr) {
     }
     Deinit_Resource_Pool(&gr->resource_pool);
     Deinit_Pipeline_Pool(&gr->pipeline.pool);
+    MZ_SAFE_RELEASE(gr->wic_factory);
     MZ_SAFE_RELEASE(gr->d2d.device);
     MZ_SAFE_RELEASE(gr->d2d.device11);
     MZ_SAFE_RELEASE(gr->d2d.device11on12);
@@ -550,6 +558,56 @@ export void Deinit_Context(CONTEXT* gr) {
     MZ_SAFE_RELEASE(gr->cmdlist);
     MZ_SAFE_RELEASE(gr->swapchain);
     MZ_SAFE_RELEASE(gr->device);
+}
+
+export TUPLE<RESOURCE_HANDLE, D3D12_CPU_DESCRIPTOR_HANDLE> Create_Texture_From_File(
+    CONTEXT* gr,
+    LPCWSTR filename
+) {
+    assert(gr && filename);
+
+    IWICBitmapDecoder* bitmap_decoder = NULL;
+    VHR(gr->wic_factory->CreateDecoderFromFilename(
+        filename,
+        NULL,
+        GENERIC_READ,
+        WICDecodeMetadataCacheOnDemand,
+        &bitmap_decoder
+    ));
+    MZ_DEFER(bitmap_decoder->Release());
+
+    IWICBitmapFrameDecode* bitmap_frame = NULL;
+    VHR(bitmap_decoder->GetFrame(0, &bitmap_frame));
+    MZ_DEFER(bitmap_frame->Release());
+
+    WICPixelFormatGUID pixel_format = {};
+    VHR(bitmap_frame->GetPixelFormat(&pixel_format));
+
+    U32 num_components = 0;
+    if (memcmp(&pixel_format, &GUID_WICPixelFormat24bppRGB, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppRGB, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppRGBA, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppPRGBA, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat24bppBGR, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppBGR, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppBGRA, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppPBGRA, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat8bppGray, sizeof(pixel_format)) == 0) {
+        num_components = 1;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat8bppAlpha, sizeof(pixel_format)) == 0) {
+        num_components = 1;
+    }
+    assert(num_components != 0);
+
+    return {};
 }
 
 export void Begin_Frame(CONTEXT* gr) {
@@ -582,7 +640,6 @@ export void Begin_Frame(CONTEXT* gr) {
             .bottom = (LONG)gr->viewport_height
         })
     );
-
     gr->pipeline.current = {};
 }
 
