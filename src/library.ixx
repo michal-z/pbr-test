@@ -131,31 +131,31 @@ export HWND Create_Window(LPCSTR name, U32 width, U32 height, bool init_imgui) {
     return window;
 }
 
-export eastl::vector<U8> Load_File(LPCSTR filename) {
+export VECTOR<U8> Load_File(LPCSTR filename) {
     assert(filename);
     FILE* file = fopen(filename, "rb");
     if (!file) {
         assert(0);
-        return eastl::vector<U8>();
+        return VECTOR<U8>();
     }
     MZ_DEFER(fclose(file));
     fseek(file, 0, SEEK_END);
     long size = ftell(file);
     if (size <= 0) {
         assert(0);
-        return eastl::vector<U8>();
+        return VECTOR<U8>();
     }
-    eastl::vector<U8> content(size);
+    VECTOR<U8> content(size);
     fseek(file, 0, SEEK_SET);
     fread(content.data(), 1, content.size(), file);
     return content;
 }
 
 export void Load_Mesh(
-    const char* filename,
-    eastl::vector<XMFLOAT3>* positions,
-    eastl::vector<XMFLOAT3>* normals,
-    eastl::vector<U32>* indices
+    LPCSTR filename,
+    VECTOR<XMFLOAT3>* positions,
+    VECTOR<XMFLOAT3>* normals,
+    VECTOR<U32>* indices
 ) {
     assert(filename && positions && normals && indices);
     assert(positions->empty() && normals->empty() && indices->empty());
@@ -338,8 +338,8 @@ export void Init_Gui_Context(IMGUI_CONTEXT* gui, graphics::CONTEXT* gr) {
         { "_Uv", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "_Color", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     };
-    const eastl::vector<U8> vs = library::Load_File("data/shaders/imgui_vs_ps.vs.cso");
-    const eastl::vector<U8> ps = library::Load_File("data/shaders/imgui_vs_ps.ps.cso");
+    const VECTOR<U8> vs = library::Load_File("data/shaders/imgui_vs_ps.vs.cso");
+    const VECTOR<U8> ps = library::Load_File("data/shaders/imgui_vs_ps.ps.cso");
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_desc = {
         .VS = { vs.data(), vs.size() },
