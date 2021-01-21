@@ -33,8 +33,8 @@ struct DEMO_STATE {
     D3D12_CPU_DESCRIPTOR_HANDLE depth_texture_dsv;
     library::FRAME_STATS frame_stats;
     library::IMGUI_CONTEXT gui;
-    eastl::vector<MESH> meshes;
-    eastl::vector<RENDERABLE> renderables;
+    VECTOR<MESH> meshes;
+    VECTOR<RENDERABLE> renderables;
     U32 num_renderables_to_draw;
     bool enable_debug_draw;
     struct {
@@ -54,19 +54,19 @@ struct DEMO_STATE {
 };
 
 void Add_Mesh(
-    const char* filename,
-    eastl::vector<MESH>* meshes,
-    eastl::vector<VERTEX>* all_vertices,
-    eastl::vector<U32>* all_indices
+    LPCSTR filename,
+    VECTOR<MESH>* meshes,
+    VECTOR<VERTEX>* all_vertices,
+    VECTOR<U32>* all_indices
 ) {
     assert(filename && meshes && all_vertices && all_indices);
 
-    eastl::vector<XMFLOAT3> positions;
-    eastl::vector<XMFLOAT3> normals;
-    eastl::vector<U32> indices;
+    VECTOR<XMFLOAT3> positions;
+    VECTOR<XMFLOAT3> normals;
+    VECTOR<U32> indices;
     library::Load_Mesh(filename, &positions, &normals, &indices);
 
-    eastl::vector<VERTEX> vertices(positions.size());
+    VECTOR<VERTEX> vertices(positions.size());
     for (U32 i = 0; i < vertices.size(); ++i) {
         vertices[i] = { positions[i], normals[i] };
     }
@@ -82,7 +82,7 @@ void Add_Mesh(
 template<typename T> void Upload_To_Gpu(
     graphics::CONTEXT* gr,
     graphics::RESOURCE_HANDLE resource,
-    const eastl::vector<T>* data,
+    const VECTOR<T>* data,
     D3D12_RESOURCE_STATES state
 ) {
     const auto [span, buffer, buffer_offset] = graphics::Allocate_Upload_Buffer_Region<T>(
@@ -113,8 +113,8 @@ bool Init_Demo_State(DEMO_STATE* demo) {
 
     // Traditional, graphics shader pso.
     {
-        const eastl::vector<U8> vs = library::Load_File("data/shaders/test_vs.vs.cso");
-        const eastl::vector<U8> ps = library::Load_File("data/shaders/test_ps.ps.cso");
+        const VECTOR<U8> vs = library::Load_File("data/shaders/test_vs.vs.cso");
+        const VECTOR<U8> ps = library::Load_File("data/shaders/test_ps.ps.cso");
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
             .VS = { vs.data(), vs.size() },
@@ -152,10 +152,10 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     VHR(demo->hud.text_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING));
     VHR(demo->hud.text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR));
 
-    eastl::vector<VERTEX> all_vertices;
-    eastl::vector<U32> all_indices;
+    VECTOR<VERTEX> all_vertices;
+    VECTOR<U32> all_indices;
     {
-        const char* mesh_paths[] = {
+        LPCSTR mesh_paths[] = {
             "data/meshes/SciFiHelmet.gltf",
             "data/meshes/sphere.gltf",
             "data/meshes/cube.gltf",

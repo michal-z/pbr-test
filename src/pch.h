@@ -65,6 +65,9 @@ using TUPLE = eastl::tuple<T, Ts...>;
 template <typename T, size_t Extent = eastl::dynamic_extent>
 using SPAN = eastl::span<T, Extent>;
 
+template <typename T, typename Allocator = EASTLAllocatorType>
+using VECTOR = eastl::vector<T, Allocator>;
+
 typedef char S8;
 typedef short S16;
 typedef int S32;
