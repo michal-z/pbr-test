@@ -68,6 +68,14 @@ using SPAN = eastl::span<T, Extent>;
 template <typename T, typename Allocator = EASTLAllocatorType>
 using VECTOR = eastl::vector<T, Allocator>;
 
+template<typename Key,
+         typename T,
+         typename Hash = eastl::hash<Key>,
+         typename Predicate = eastl::equal_to<Key>,
+         typename Allocator = EASTLAllocatorType,
+         bool bCacheHashCode = false>
+using HASH_MAP = eastl::hash_map<Key, T, Hash, Predicate, Allocator, bCacheHashCode>;
+
 typedef char S8;
 typedef short S16;
 typedef int S32;

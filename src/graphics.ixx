@@ -137,8 +137,8 @@ struct RESOURCE {
 };
 
 struct RESOURCE_POOL {
-    eastl::vector<RESOURCE> resources;
-    eastl::vector<U16> generations;
+    VECTOR<RESOURCE> resources;
+    VECTOR<U16> generations;
 };
 
 void Init_Resource_Pool(RESOURCE_POOL* pool) {
@@ -209,8 +209,8 @@ struct PIPELINE {
 };
 
 struct PIPELINE_POOL {
-    eastl::vector<PIPELINE> pipelines;
-    eastl::vector<U16> generations;
+    VECTOR<PIPELINE> pipelines;
+    VECTOR<U16> generations;
 };
 
 void Init_Pipeline_Pool(PIPELINE_POOL* pool) {
@@ -286,18 +286,18 @@ export struct CONTEXT {
     U32 back_buffer_index;
     U32 viewport_width;
     U32 viewport_height;
-    RESOURCE_POOL resource_pool;
-    struct {
-        PIPELINE_POOL pool;
-        PIPELINE_HANDLE current;
-        eastl::hash_map<U64, PIPELINE_HANDLE> map = {{}};
-    } pipeline;
     DESCRIPTOR_HEAP rtv_heap;
     DESCRIPTOR_HEAP dsv_heap;
     DESCRIPTOR_HEAP cbv_srv_uav_cpu_heap;
     DESCRIPTOR_HEAP cbv_srv_uav_gpu_heaps[max_num_frames_in_flight];
     GPU_MEMORY_HEAP upload_heaps[max_num_frames_in_flight];
-    eastl::vector<D3D12_RESOURCE_BARRIER> buffered_resource_barriers;
+    VECTOR<D3D12_RESOURCE_BARRIER> buffered_resource_barriers;
+    RESOURCE_POOL resource_pool;
+    struct {
+        PIPELINE_POOL pool;
+        PIPELINE_HANDLE current;
+        HASH_MAP<U64, PIPELINE_HANDLE> map = {{}};
+    } pipeline;
     struct {
         ID2D1_FACTORY* factory;
         ID2D1_DEVICE* device;
@@ -336,7 +336,7 @@ export bool Init_Context(CONTEXT* gr, HWND window) {
         ID3D12Debug1* debug = NULL;
         if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug)))) {
             debug->EnableDebugLayer();
-            //debug->SetEnableGPUBasedValidation(TRUE);
+            debug->SetEnableGPUBasedValidation(TRUE);
             MZ_SAFE_RELEASE(debug);
         }
     }
