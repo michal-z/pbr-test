@@ -27,10 +27,10 @@
 #include "EASTL/sort.h"
 #include "EASTL/finally.h"
 #include "EASTL/span.h"
+#include "EASTL/tuple.h"
 
 #include "cgltf.h"
 #include "imgui/imgui.h"
-//#include "meshoptimizer/meshoptimizer.h"
 #include "DirectXMath/DirectXMath.h"
 using namespace DirectX;
 
