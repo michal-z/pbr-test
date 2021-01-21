@@ -71,38 +71,6 @@ void Add_Mesh(
     for (U32 i = 0; i < vertices.size(); ++i) {
         vertices[i] = { positions[i], normals[i] };
     }
-
-#if 0
-    eastl::vector<U32> remap(file_indices.size());
-    const size_t num_unique_vertices = meshopt_generateVertexRemap(
-        remap.data(),
-        file_indices.data(),
-        file_indices.size(),
-        file_vertices.data(),
-        file_vertices.size(),
-        sizeof VERTEX
-    );
-    eastl::vector<VERTEX> vertices(num_unique_vertices);
-    meshopt_remapVertexBuffer(
-        vertices.data(),
-        file_vertices.data(),
-        file_vertices.size(),
-        sizeof VERTEX,
-        remap.data()
-    );
-    eastl::vector<U32> indices(file_indices.size());
-    meshopt_remapIndexBuffer(indices.data(), file_indices.data(), file_indices.size(), remap.data());
-    meshopt_optimizeVertexCache(indices.data(), indices.data(), indices.size(), vertices.size());
-    meshopt_optimizeVertexFetch(
-        vertices.data(),
-        indices.data(),
-        indices.size(),
-        vertices.data(),
-        vertices.size(),
-        sizeof VERTEX
-    );
-#endif
-
     meshes->push_back({
         .index_offset = (U32)all_indices->size(),
         .vertex_offset = (U32)all_vertices->size(),
@@ -296,19 +264,10 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     library::Init_Gui_Context(&demo->gui, gr);
 
     // Upload vertices.
-    Upload_To_Gpu(
-        gr,
-        demo->vertex_buffer,
-        &all_vertices,
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE
-    );
+    Upload_To_Gpu(gr, demo->vertex_buffer, &all_vertices, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
     // Upload indices.
-    Upload_To_Gpu(
-        gr,
-        demo->index_buffer,
-        &all_indices,
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE
-    );
+    Upload_To_Gpu(gr, demo->index_buffer, &all_indices, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
     graphics::Flush_Gpu_Commands(gr);
     graphics::Finish_Gpu_Commands(gr);
