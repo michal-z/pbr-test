@@ -1,0 +1,14 @@
+visualstudio/.vs
+visualstudio/x64
+bin/imgui.ini
+*.cso
+*.vs.txt
+*.ps.txt
+*.ms.txt
+*.cs.txt
+*.exe
+*.pdb
+*.ilk
+*.ipdb
+*.iobj
+*.vcxproj.user
