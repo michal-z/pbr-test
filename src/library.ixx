@@ -53,7 +53,7 @@ export void Update_Frame_Stats(FRAME_STATS* stats) {
 }
 
 LRESULT CALLBACK Process_Window_Message(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
-	ImGuiIO* ui = NULL;
+    ImGuiIO* ui = NULL;
     if (ImGui::GetCurrentContext()) {
         ui = &ImGui::GetIO();
     }
@@ -300,33 +300,7 @@ export void Init_Gui_Context(IMGUI_CONTEXT* gui, graphics::CONTEXT* gr) {
         D3D12_RESOURCE_STATE_COPY_DEST,
         NULL
     );
-    D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout;
-    U64 required_size;
-    gr->device->GetCopyableFootprints(&desc, 0, 1, 0, &layout, NULL, NULL, &required_size);
-    const auto [span, buffer, buffer_offset] = graphics::Allocate_Upload_Buffer_Region<U8>(
-        gr,
-        (U32)required_size
-    );
-    layout.Offset = buffer_offset;
-    for (U32 y = 0; y < layout.Footprint.Height; ++y) {
-        memcpy(&span[y * layout.Footprint.RowPitch], pixels + y * width * 4, width * 4);
-    }
-    gr->cmdlist->CopyTextureRegion(
-        Get_Const_Ptr<D3D12_TEXTURE_COPY_LOCATION>({
-            .pResource = graphics::Get_Resource(gr, gui->font),
-            .Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
-            .SubresourceIndex = 0,
-        }),
-        0,
-        0,
-        0,
-        Get_Const_Ptr<D3D12_TEXTURE_COPY_LOCATION>({
-            .pResource = buffer,
-            .Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
-            .PlacedFootprint = layout,
-        }),
-        NULL
-    );
+    graphics::Upload_Tex2D_Subresource_Data(gr, gui->font, 0, pixels, width * 4);
     graphics::Add_Transition_Barrier(gr, gui->font, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
     gui->font_srv = graphics::Allocate_Cpu_Descriptors(gr, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1);

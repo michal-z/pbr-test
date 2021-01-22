@@ -560,56 +560,6 @@ export void Deinit_Context(CONTEXT* gr) {
     MZ_SAFE_RELEASE(gr->device);
 }
 
-export TUPLE<RESOURCE_HANDLE, D3D12_CPU_DESCRIPTOR_HANDLE> Create_Texture_From_File(
-    CONTEXT* gr,
-    LPCWSTR filename
-) {
-    assert(gr && filename);
-
-    IWICBitmapDecoder* bitmap_decoder = NULL;
-    VHR(gr->wic_factory->CreateDecoderFromFilename(
-        filename,
-        NULL,
-        GENERIC_READ,
-        WICDecodeMetadataCacheOnDemand,
-        &bitmap_decoder
-    ));
-    MZ_DEFER(bitmap_decoder->Release());
-
-    IWICBitmapFrameDecode* bitmap_frame = NULL;
-    VHR(bitmap_decoder->GetFrame(0, &bitmap_frame));
-    MZ_DEFER(bitmap_frame->Release());
-
-    WICPixelFormatGUID pixel_format = {};
-    VHR(bitmap_frame->GetPixelFormat(&pixel_format));
-
-    U32 num_components = 0;
-    if (memcmp(&pixel_format, &GUID_WICPixelFormat24bppRGB, sizeof(pixel_format)) == 0) {
-        num_components = 4;
-    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppRGB, sizeof(pixel_format)) == 0) {
-        num_components = 4;
-    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppRGBA, sizeof(pixel_format)) == 0) {
-        num_components = 4;
-    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppPRGBA, sizeof(pixel_format)) == 0) {
-        num_components = 4;
-    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat24bppBGR, sizeof(pixel_format)) == 0) {
-        num_components = 4;
-    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppBGR, sizeof(pixel_format)) == 0) {
-        num_components = 4;
-    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppBGRA, sizeof(pixel_format)) == 0) {
-        num_components = 4;
-    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppPBGRA, sizeof(pixel_format)) == 0) {
-        num_components = 4;
-    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat8bppGray, sizeof(pixel_format)) == 0) {
-        num_components = 1;
-    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat8bppAlpha, sizeof(pixel_format)) == 0) {
-        num_components = 1;
-    }
-    assert(num_components != 0);
-
-    return {};
-}
-
 export void Begin_Frame(CONTEXT* gr) {
     assert(gr);
 
@@ -1142,6 +1092,167 @@ export inline D3D12_GPU_DESCRIPTOR_HANDLE Copy_Descriptors_To_Gpu_Heap(
 
 export template<typename T> inline bool Is_Valid(const T handle) {
     return handle.index != 0 && handle.generation != 0;
+}
+
+export void Upload_Tex2D_Subresource_Data(
+    CONTEXT* gr,
+    RESOURCE_HANDLE texture,
+    U32 subresource,
+    U8* data,
+    U32 row_pitch
+) {
+    assert(gr);
+    RESOURCE* resource = Get_Resource_Info(&gr->resource_pool, texture);
+    assert(resource->desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D);
+
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout;
+    U64 required_size;
+    gr->device->GetCopyableFootprints(
+        &resource->desc,
+        subresource,
+        1,
+        0,
+        &layout,
+        NULL,
+        NULL,
+        &required_size
+    );
+    const auto [span, buffer, buffer_offset] = Allocate_Upload_Buffer_Region<U8>(gr, (U32)required_size);
+    layout.Offset = buffer_offset;
+    for (U32 y = 0; y < layout.Footprint.Height; ++y) {
+        memcpy(&span[y * layout.Footprint.RowPitch], data + y * row_pitch, row_pitch);
+    }
+    gr->cmdlist->CopyTextureRegion(
+        Get_Const_Ptr<D3D12_TEXTURE_COPY_LOCATION>({
+            .pResource = graphics::Get_Resource(gr, texture),
+            .Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
+            .SubresourceIndex = subresource,
+        }),
+        0,
+        0,
+        0,
+        Get_Const_Ptr<D3D12_TEXTURE_COPY_LOCATION>({
+            .pResource = buffer,
+            .Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+            .PlacedFootprint = layout,
+        }),
+        NULL
+    );
+}
+
+export TUPLE<RESOURCE_HANDLE, D3D12_CPU_DESCRIPTOR_HANDLE> Create_Texture_From_File(
+    CONTEXT* gr,
+    LPCWSTR filename
+) {
+    assert(gr && filename);
+
+    IWICBitmapDecoder* bitmap_decoder = NULL;
+    VHR(gr->wic_factory->CreateDecoderFromFilename(
+        filename,
+        NULL,
+        GENERIC_READ,
+        WICDecodeMetadataCacheOnDemand,
+        &bitmap_decoder
+    ));
+    MZ_DEFER(bitmap_decoder->Release());
+
+    IWICBitmapFrameDecode* bitmap_frame = NULL;
+    VHR(bitmap_decoder->GetFrame(0, &bitmap_frame));
+    MZ_DEFER(bitmap_frame->Release());
+
+    WICPixelFormatGUID pixel_format = {};
+    VHR(bitmap_frame->GetPixelFormat(&pixel_format));
+
+    U32 num_components = 0;
+    if (memcmp(&pixel_format, &GUID_WICPixelFormat24bppRGB, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppRGB, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppRGBA, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppPRGBA, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat24bppBGR, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppBGR, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppBGRA, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat32bppPBGRA, sizeof(pixel_format)) == 0) {
+        num_components = 4;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat8bppGray, sizeof(pixel_format)) == 0) {
+        num_components = 1;
+    } else if (memcmp(&pixel_format, &GUID_WICPixelFormat8bppAlpha, sizeof(pixel_format)) == 0) {
+        num_components = 1;
+    }
+    assert(num_components != 0);
+
+    const WICPixelFormatGUID wic_format = (num_components == 1) ? GUID_WICPixelFormat8bppGray :
+        GUID_WICPixelFormat32bppRGBA;
+    const DXGI_FORMAT dxgi_format = (num_components == 1) ? DXGI_FORMAT_R8_UNORM :
+        DXGI_FORMAT_R8G8B8A8_UNORM;
+
+    IWICFormatConverter* image = NULL;
+    VHR(gr->wic_factory->CreateFormatConverter(&image));
+    MZ_DEFER(image->Release());
+
+    VHR(image->Initialize(
+        bitmap_frame,
+        wic_format,
+        WICBitmapDitherTypeNone,
+        NULL,
+        0.0,
+        WICBitmapPaletteTypeCustom
+    ));
+    U32 image_width = 0;
+    U32 image_height = 0;
+    VHR(image->GetSize(&image_width, &image_height));
+
+    const RESOURCE_HANDLE texture = Create_Committed_Resource(
+        gr,
+        D3D12_HEAP_TYPE_DEFAULT,
+        D3D12_HEAP_FLAG_NONE,
+        Get_Const_Ptr(CD3DX12_RESOURCE_DESC::Tex2D(dxgi_format, image_width, image_height)),
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        NULL
+    );
+    const D3D12_CPU_DESCRIPTOR_HANDLE texture_srv = Allocate_Cpu_Descriptors(
+        gr,
+        D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+        1
+    );
+    gr->device->CreateShaderResourceView(Get_Resource(gr, texture), NULL, texture_srv);
+
+    RESOURCE* resource = Get_Resource_Info(&gr->resource_pool, texture);
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout;
+    U64 required_size;
+    gr->device->GetCopyableFootprints(&resource->desc, 0, 1, 0, &layout, NULL, NULL, &required_size);
+    const auto [span, buffer, buffer_offset] = Allocate_Upload_Buffer_Region<U8>(gr, (U32)required_size);
+    layout.Offset = buffer_offset;
+
+    VHR(image->CopyPixels(
+        NULL,
+        layout.Footprint.RowPitch,
+        layout.Footprint.RowPitch * layout.Footprint.Height,
+        span.data()
+    ));
+    gr->cmdlist->CopyTextureRegion(
+        Get_Const_Ptr<D3D12_TEXTURE_COPY_LOCATION>({
+            .pResource = graphics::Get_Resource(gr, texture),
+            .Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
+            .SubresourceIndex = 0,
+        }),
+        0,
+        0,
+        0,
+        Get_Const_Ptr<D3D12_TEXTURE_COPY_LOCATION>({
+            .pResource = buffer,
+            .Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+            .PlacedFootprint = layout,
+        }),
+        NULL
+    );
+    return { texture, texture_srv };
 }
 
 } // namespace graphics
