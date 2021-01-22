@@ -176,9 +176,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     VECTOR<U32> all_indices;
     {
         LPCSTR mesh_paths[] = {
-            "data/meshes/SciFiHelmet.gltf",
-            "data/meshes/sphere.gltf",
-            "data/meshes/cube.gltf",
+            "data/SciFiHelmet/SciFiHelmet.gltf",
         };
         for (U32 i = 0; i < eastl::size(mesh_paths); ++i) {
             Add_Mesh(mesh_paths[i], &demo->meshes, &all_vertices, &all_indices);
