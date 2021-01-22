@@ -6,7 +6,7 @@
 
 [RootSignature(ROOT_SIGNATURE)]
 void Vertex_Shader(
-    UINT vertex_id : SV_VertexID,
+    U32 vertex_id : SV_VertexID,
     out FLOAT4 out_position_ndc : SV_Position,
     out FLOAT2 out_uv : _Uv
 ) {

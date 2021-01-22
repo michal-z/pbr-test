@@ -6,9 +6,9 @@
     "DescriptorTable(SRV(t0, numDescriptors = 2), visibility = SHADER_VISIBILITY_VERTEX)"
 
 struct DRAW_COMMAND {
-    UINT index_offset;
-    UINT vertex_offset;
-    UINT renderable_id;
+    U32 index_offset;
+    U32 vertex_offset;
+    U32 renderable_id;
 };
 
 struct INPUT_VERTEX {
@@ -33,9 +33,9 @@ struct CONSTANTS {
 ConstantBuffer<CONSTANTS> cbv_const : register(b1);
 
 StructuredBuffer<INPUT_VERTEX> srv_vertices : register(t0);
-Buffer<UINT> srv_indices : register(t1);
+Buffer<U32> srv_indices : register(t1);
 
-UINT Hash(UINT a) {
+U32 Hash(U32 a) {
     a = (a + 0x7ed55d16) + (a << 12);
     a = (a ^ 0xc761c23c) ^ (a >> 19);
     a = (a + 0x165667b1) + (a << 5);
@@ -49,10 +49,10 @@ ConstantBuffer<DRAW_COMMAND> cbv_draw_cmd : register(b0);
 
 [RootSignature(ROOT_SIGNATURE)]
 void Vertex_Shader(
-    UINT vertex_id : SV_VertexID,
+    U32 vertex_id : SV_VertexID,
     out OUTPUT_VERTEX output
 ) {
-    const UINT vertex_index = srv_indices[vertex_id + cbv_draw_cmd.index_offset] +
+    const U32 vertex_index = srv_indices[vertex_id + cbv_draw_cmd.index_offset] +
         cbv_draw_cmd.vertex_offset;
 
     FLOAT4 position = FLOAT4(srv_vertices[vertex_index].position, 1.0f);
@@ -62,7 +62,7 @@ void Vertex_Shader(
 
     FLOAT3 color;
     {
-        const UINT hash0 = Hash(cbv_draw_cmd.renderable_id);
+        const U32 hash0 = Hash(cbv_draw_cmd.renderable_id);
         color = FLOAT3(hash0 & 0xFF, (hash0 >> 8) & 0xFF, (hash0 >> 16) & 0xFF) / 255.0;
     }
 
@@ -96,9 +96,9 @@ void Pixel_Shader(
     };
 
     FLOAT3 color = 0.0f;
-    for (UINT i = 0; i < 4; ++i) {
+    for (U32 i = 0; i < 4; ++i) {
         const FLOAT3 l = normalize(light_positions[i] - input.position);
-        const FLOAT n_dot_l = saturate(dot(normal, l));
+        const F32 n_dot_l = saturate(dot(normal, l));
         color += n_dot_l * light_colors[i];
     }
     color *= input.color;

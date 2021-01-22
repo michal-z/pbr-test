@@ -13,6 +13,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vertex-shaders", "vertex-sh
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pixel-shaders", "pixel-shaders.vcxproj", "{74FBCD7F-ED6C-43F8-BF96-38B55D36C650}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "compute-shaders", "compute-shaders.vcxproj", "{5DBE88BB-65DA-43D7-A8DD-1E2E98B08F82}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -31,6 +33,10 @@ Global
 		{74FBCD7F-ED6C-43F8-BF96-38B55D36C650}.Debug|x64.Build.0 = Debug|x64
 		{74FBCD7F-ED6C-43F8-BF96-38B55D36C650}.Release|x64.ActiveCfg = Release|x64
 		{74FBCD7F-ED6C-43F8-BF96-38B55D36C650}.Release|x64.Build.0 = Release|x64
+		{5DBE88BB-65DA-43D7-A8DD-1E2E98B08F82}.Debug|x64.ActiveCfg = Debug|x64
+		{5DBE88BB-65DA-43D7-A8DD-1E2E98B08F82}.Debug|x64.Build.0 = Debug|x64
+		{5DBE88BB-65DA-43D7-A8DD-1E2E98B08F82}.Release|x64.ActiveCfg = Release|x64
+		{5DBE88BB-65DA-43D7-A8DD-1E2E98B08F82}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

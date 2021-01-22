@@ -1,8 +1,9 @@
 #pragma once
-#define UINT uint
+#define U32 uint
+#define F32 float
+#define UINT2 uint2
 #define UINT3 uint3
 #define UINT4 uint4
-#define FLOAT float
 #define FLOAT2 float2
 #define FLOAT3 float3
 #define FLOAT4 float4

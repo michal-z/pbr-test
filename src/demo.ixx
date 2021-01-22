@@ -30,10 +30,12 @@ struct DEMO_STATE {
     graphics::RESOURCE_HANDLE const_buffer;
     graphics::RESOURCE_HANDLE depth_texture;
     graphics::RESOURCE_HANDLE dynamic_texture;
+    graphics::RESOURCE_HANDLE ao_texture;
     D3D12_CPU_DESCRIPTOR_HANDLE vertex_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE index_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE depth_texture_dsv;
     D3D12_CPU_DESCRIPTOR_HANDLE dynamic_texture_srv;
+    D3D12_CPU_DESCRIPTOR_HANDLE ao_texture_srv;
     library::FRAME_STATS frame_stats;
     library::IMGUI_CONTEXT gui;
     VECTOR<MESH> meshes;
@@ -296,10 +298,23 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             demo->dynamic_texture_srv
         );
     }
-
     graphics::Begin_Frame(gr);
 
     library::Init_Gui_Context(&demo->gui, gr);
+
+    {
+        const auto [texture, srv] = graphics::Create_Texture_From_File(
+            gr,
+            L"data/SciFiHelmet/SciFiHelmet_AmbientOcclusion.png"
+        );
+        demo->ao_texture = texture;
+        demo->ao_texture_srv = srv;
+        graphics::Add_Transition_Barrier(
+            gr,
+            demo->ao_texture,
+            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+        );
+    }
 
     // Upload vertices.
     Upload_To_Gpu(gr, demo->vertex_buffer, &all_vertices, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -338,6 +353,7 @@ void Deinit_Demo_State(DEMO_STATE* demo) {
     graphics::Release_Resource(gr, demo->const_buffer);
     graphics::Release_Resource(gr, demo->depth_texture);
     graphics::Release_Resource(gr, demo->dynamic_texture);
+    graphics::Release_Resource(gr, demo->ao_texture);
     graphics::Release_Pipeline(gr, demo->display_texture_pso);
     graphics::Release_Pipeline(gr, demo->mesh_pso);
     graphics::Deinit_Context(gr);
@@ -447,6 +463,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
         );
 
     }
+#if 1
     // Update dynamic texture.
     {
         U8 data[256] = {};
@@ -456,6 +473,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
         }
         Update_Tex2D_Subresource(gr, demo->dynamic_texture, 0, data, 16);
     }
+#endif
     graphics::Add_Transition_Barrier(
         gr,
         demo->const_buffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER
@@ -499,7 +517,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
     gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
     gr->cmdlist->SetGraphicsRootDescriptorTable(
         0,
-        graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->dynamic_texture_srv)
+        graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->ao_texture_srv)
     );
     gr->cmdlist->DrawInstanced(4, 1, 0, 0);
 
