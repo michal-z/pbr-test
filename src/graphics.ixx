@@ -1388,41 +1388,4 @@ export TUPLE<RESOURCE_HANDLE, D3D12_CPU_DESCRIPTOR_HANDLE> Create_Texture_From_F
     return { texture, texture_srv };
 }
 
-export struct MIPMAP_GENERATOR {
-    PIPELINE_HANDLE pso;
-    RESOURCE_HANDLE scratch_textures[4];
-    D3D12_CPU_DESCRIPTOR_HANDLE base_uav;
-    DXGI_FORMAT format;
-};
-
-export void Init_Mipmap_Generator(MIPMAP_GENERATOR* mipgen, CONTEXT* gr, DXGI_FORMAT format) {
-    assert(mipgen && gr);
-
-    U32 width = 2048 / 2;
-    U32 height = 2048 / 2;
-    for (U32 i = 0; i < eastl::size(mipgen->scratch_textures); ++i) {
-        auto desc = CD3DX12_RESOURCE_DESC::Tex2D(format, width, height, 1, 1);
-        desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-
-        mipgen->scratch_textures[i] = Create_Committed_Resource(
-            gr,
-            D3D12_HEAP_TYPE_DEFAULT,
-            D3D12_HEAP_FLAG_NONE,
-            &desc,
-            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-            NULL 
-        );
-        width /= 2;
-        height /= 2;
-    }
-}
-
-export void Deinit_Mipmap_Generator(MIPMAP_GENERATOR* mipgen, CONTEXT* gr) {
-    assert(mipgen && gr);
-    Release_Pipeline(gr, mipgen->pso);
-    for (U32 i = 0; i < eastl::size(mipgen->scratch_textures); ++i) {
-        Release_Resource(gr, mipgen->scratch_textures[i]);
-    }
-}
-
 } // namespace graphics

@@ -506,4 +506,64 @@ export void Draw_Gui(IMGUI_CONTEXT* gui, graphics::CONTEXT* gr) {
     }
 }
 
+export struct MIPMAP_GENERATOR {
+    graphics::PIPELINE_HANDLE pso;
+    graphics::RESOURCE_HANDLE scratch_textures[4];
+    D3D12_CPU_DESCRIPTOR_HANDLE base_uav;
+    DXGI_FORMAT format;
+};
+
+export void Init_Mipmap_Generator(MIPMAP_GENERATOR* mipgen, graphics::CONTEXT* gr, DXGI_FORMAT format) {
+    assert(mipgen && gr);
+
+    U32 width = 2048 / 2;
+    U32 height = 2048 / 2;
+    for (U32 i = 0; i < eastl::size(mipgen->scratch_textures); ++i) {
+        auto desc = CD3DX12_RESOURCE_DESC::Tex2D(format, width, height, 1, 1);
+        desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+        mipgen->scratch_textures[i] = Create_Committed_Resource(
+            gr,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_HEAP_FLAG_NONE,
+            &desc,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            NULL 
+        );
+        width /= 2;
+        height /= 2;
+    }
+    mipgen->base_uav = graphics::Allocate_Cpu_Descriptors(gr, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 4);
+
+    D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = mipgen->base_uav;
+    for (U32 i = 0; i < eastl::size(mipgen->scratch_textures); ++i) {
+        gr->device->CreateUnorderedAccessView(
+            Get_Resource(gr, mipgen->scratch_textures[i]),
+            NULL,
+            NULL,
+            cpu_handle
+        );
+        cpu_handle.ptr += gr->cbv_srv_uav_cpu_heap.descriptor_size;
+    }
+    {
+        const VECTOR<U8> cs = Load_File("data/shaders/generate_mipmaps_cs.cs.cso");
+        D3D12_COMPUTE_PIPELINE_STATE_DESC desc = {
+            .CS = { cs.data(), cs.size() },
+        };
+        mipgen->pso = graphics::Create_Compute_Shader_Pipeline(gr, &desc);
+    }
+    mipgen->format = format;
+}
+
+export void Deinit_Mipmap_Generator(MIPMAP_GENERATOR* mipgen, graphics::CONTEXT* gr) {
+    assert(mipgen && gr);
+    graphics::Release_Pipeline(gr, mipgen->pso);
+    for (U32 i = 0; i < eastl::size(mipgen->scratch_textures); ++i) {
+        graphics::Release_Resource(gr, mipgen->scratch_textures[i]);
+    }
+}
+
+export void Generate_Mipmaps(MIPMAP_GENERATOR* mipgen, CONTEXT* gr, graphics::RESOURCE_HANDLE texture) {
+}
+
 } // namespace library

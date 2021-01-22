@@ -23,6 +23,10 @@ struct RENDERABLE {
 
 struct DEMO_STATE {
     graphics::CONTEXT graphics;
+    library::FRAME_STATS frame_stats;
+    library::IMGUI_CONTEXT gui;
+    VECTOR<MESH> meshes;
+    VECTOR<RENDERABLE> renderables;
     graphics::PIPELINE_HANDLE display_texture_pso;
     graphics::PIPELINE_HANDLE mesh_pso;
     graphics::RESOURCE_HANDLE vertex_buffer;
@@ -36,10 +40,6 @@ struct DEMO_STATE {
     D3D12_CPU_DESCRIPTOR_HANDLE depth_texture_dsv;
     D3D12_CPU_DESCRIPTOR_HANDLE dynamic_texture_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE ao_texture_srv;
-    library::FRAME_STATS frame_stats;
-    library::IMGUI_CONTEXT gui;
-    VECTOR<MESH> meshes;
-    VECTOR<RENDERABLE> renderables;
     struct {
         ID2D1_SOLID_COLOR_BRUSH* brush;
         IDWRITE_TEXT_FORMAT* text_format;
@@ -298,6 +298,10 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             demo->dynamic_texture_srv
         );
     }
+
+    library::MIPMAP_GENERATOR mipgen = {};
+    library::Init_Mipmap_Generator(&mipgen, gr, DXGI_FORMAT_R8G8B8A8_UNORM);
+
     graphics::Begin_Frame(gr);
 
     library::Init_Gui_Context(&demo->gui, gr);
@@ -324,6 +328,8 @@ bool Init_Demo_State(DEMO_STATE* demo) {
 
     graphics::Flush_Gpu_Commands(gr);
     graphics::Finish_Gpu_Commands(gr);
+
+    library::Deinit_Mipmap_Generator(&mipgen, gr);
 
     library::Init_Frame_Stats(&demo->frame_stats);
 
@@ -435,7 +441,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
     {
         const auto [span, buffer, buffer_offset] = graphics::Allocate_Upload_Buffer_Region<XMFLOAT4X4A>(
             gr,
-            (U32)demo->renderables.size() + 2
+            (U32)demo->renderables.size() + 1
         );
         XMMATRIX world_to_clip = XMMatrixLookToLH(
             XMLoadFloat3(&demo->camera.position),
@@ -452,7 +458,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
 
         for (U32 i = 0; i < demo->renderables.size(); ++i) {
             const XMVECTOR pos = XMLoadFloat3(&demo->renderables[i].position);
-            XMStoreFloat4x4A(&span[i + 2], XMMatrixTranspose(XMMatrixTranslationFromVector(pos)));
+            XMStoreFloat4x4A(&span[i + 1], XMMatrixTranspose(XMMatrixTranslationFromVector(pos)));
         }
         gr->cmdlist->CopyBufferRegion(
             graphics::Get_Resource(gr, demo->const_buffer),
@@ -463,7 +469,6 @@ void Update_Demo_State(DEMO_STATE* demo) {
         );
 
     }
-#if 1
     // Update dynamic texture.
     {
         U8 data[256] = {};
@@ -473,7 +478,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
         }
         Update_Tex2D_Subresource(gr, demo->dynamic_texture, 0, data, 16);
     }
-#endif
+
     graphics::Add_Transition_Barrier(
         gr,
         demo->const_buffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER
