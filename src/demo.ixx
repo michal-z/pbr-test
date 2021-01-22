@@ -23,20 +23,21 @@ struct RENDERABLE {
 
 struct DEMO_STATE {
     graphics::CONTEXT graphics;
-    graphics::PIPELINE_HANDLE graphics_pso;
+    graphics::PIPELINE_HANDLE display_texture_pso;
+    graphics::PIPELINE_HANDLE mesh_pso;
     graphics::RESOURCE_HANDLE vertex_buffer;
     graphics::RESOURCE_HANDLE index_buffer;
     graphics::RESOURCE_HANDLE const_buffer;
     graphics::RESOURCE_HANDLE depth_texture;
+    graphics::RESOURCE_HANDLE dynamic_texture;
     D3D12_CPU_DESCRIPTOR_HANDLE vertex_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE index_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE depth_texture_dsv;
+    D3D12_CPU_DESCRIPTOR_HANDLE dynamic_texture_srv;
     library::FRAME_STATS frame_stats;
     library::IMGUI_CONTEXT gui;
     VECTOR<MESH> meshes;
     VECTOR<RENDERABLE> renderables;
-    U32 num_renderables_to_draw;
-    bool enable_debug_draw;
     struct {
         ID2D1_SOLID_COLOR_BRUSH* brush;
         IDWRITE_TEXT_FORMAT* text_format;
@@ -111,10 +112,29 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     }
     graphics::CONTEXT* gr = &demo->graphics;
 
-    // Traditional, graphics shader pso.
     {
-        const VECTOR<U8> vs = library::Load_File("data/shaders/test_vs.vs.cso");
-        const VECTOR<U8> ps = library::Load_File("data/shaders/test_ps.ps.cso");
+        const VECTOR<U8> vs = library::Load_File("data/shaders/display_texture_vs_ps.vs.cso");
+        const VECTOR<U8> ps = library::Load_File("data/shaders/display_texture_vs_ps.ps.cso");
+
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
+            .VS = { vs.data(), vs.size() },
+            .PS = { ps.data(), ps.size() },
+            .BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT),
+            .SampleMask = UINT32_MAX,
+            .RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT),
+            .DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT),
+            .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
+            .NumRenderTargets = 1,
+            .RTVFormats = { DXGI_FORMAT_R8G8B8A8_UNORM },
+            .SampleDesc = { .Count = 1, .Quality = 0 },
+        };
+        desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+        desc.DepthStencilState.DepthEnable = FALSE;
+        demo->display_texture_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
+    }
+    {
+        const VECTOR<U8> vs = library::Load_File("data/shaders/mesh_vs_ps.vs.cso");
+        const VECTOR<U8> ps = library::Load_File("data/shaders/mesh_vs_ps.ps.cso");
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
             .VS = { vs.data(), vs.size() },
@@ -130,7 +150,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             .SampleDesc = { .Count = 1, .Quality = 0 },
         };
         desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-        demo->graphics_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
+        demo->mesh_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
 
     VHR(gr->d2d.context->CreateSolidColorBrush(
@@ -257,6 +277,27 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             demo->depth_texture_dsv
         );
     }
+    // Create dynamic texture.
+    {
+        demo->dynamic_texture = graphics::Create_Committed_Resource(
+            gr,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_HEAP_FLAG_NONE,
+            Get_Const_Ptr(CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8_UNORM, 16, 16, 1, 1)),
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            NULL
+        );
+        demo->dynamic_texture_srv = graphics::Allocate_Cpu_Descriptors(
+            gr,
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+            1
+        );
+        gr->device->CreateShaderResourceView(
+            graphics::Get_Resource(gr, demo->dynamic_texture),
+            NULL,
+            demo->dynamic_texture_srv
+        );
+    }
 
     graphics::Begin_Frame(gr);
 
@@ -282,7 +323,6 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         .cursor_prev_x = 0,
         .cursor_prev_y = 0,
     };
-    demo->num_renderables_to_draw = (U32)demo->renderables.size();
     return true;
 }
 
@@ -299,7 +339,9 @@ void Deinit_Demo_State(DEMO_STATE* demo) {
     graphics::Release_Resource(gr, demo->index_buffer);
     graphics::Release_Resource(gr, demo->const_buffer);
     graphics::Release_Resource(gr, demo->depth_texture);
-    graphics::Release_Pipeline(gr, demo->graphics_pso);
+    graphics::Release_Resource(gr, demo->dynamic_texture);
+    graphics::Release_Pipeline(gr, demo->display_texture_pso);
+    graphics::Release_Pipeline(gr, demo->mesh_pso);
     graphics::Deinit_Context(gr);
 }
 
@@ -310,24 +352,6 @@ void Update_Demo_State(DEMO_STATE* demo) {
     library::Update_Gui(demo->frame_stats.delta_time);
 
     ImGui::ShowDemoWindow();
-
-    ImGui::SetNextWindowPos(
-        ImVec2(demo->graphics.viewport_width - 600.0f - 20.0f, 20.0f),
-        ImGuiCond_FirstUseEver
-    );
-    ImGui::SetNextWindowSize(ImVec2(600.0f, 250.0f), ImGuiCond_FirstUseEver);
-    ImGui::Begin(
-        "Demo Settings",
-        NULL,
-        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings
-    );
-    ImGui::SliderInt(
-        "Number of objects",
-        (S32*)&demo->num_renderables_to_draw,
-        1,
-        (S32)demo->renderables.size()
-    );
-    ImGui::Checkbox("Enable debug draw", &demo->enable_debug_draw);
 
     // Handle camera rotation with mouse.
     {
@@ -388,17 +412,13 @@ void Update_Demo_State(DEMO_STATE* demo) {
     gr->cmdlist->OMSetRenderTargets(1, &back_buffer_rtv, TRUE, &demo->depth_texture_dsv);
     gr->cmdlist->ClearDepthStencilView(demo->depth_texture_dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, NULL);
     gr->cmdlist->ClearRenderTargetView(back_buffer_rtv, XMVECTORF32{ 0.2f, 0.4f, 0.8f, 1.0f }, 0, NULL);
-    gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    graphics::Add_Transition_Barrier(gr, demo->const_buffer, D3D12_RESOURCE_STATE_COPY_DEST);
+    graphics::Add_Transition_Barrier(gr, demo->dynamic_texture, D3D12_RESOURCE_STATE_COPY_DEST);
+    graphics::Flush_Resource_Barriers(gr);
 
     // Upload constant data.
     {
-        graphics::Add_Transition_Barrier(
-            gr,
-            demo->const_buffer,
-            D3D12_RESOURCE_STATE_COPY_DEST
-        );
-        graphics::Flush_Resource_Barriers(gr);
-
         const auto [span, buffer, buffer_offset] = graphics::Allocate_Upload_Buffer_Region<XMFLOAT4X4A>(
             gr,
             (U32)demo->renderables.size() + 2
@@ -415,7 +435,6 @@ void Update_Demo_State(DEMO_STATE* demo) {
             100.0f
         );
         XMStoreFloat4x4A(&span[0], XMMatrixTranspose(world_to_clip));
-        *(U32*)&span[1] = demo->enable_debug_draw ? 1 : 0;
 
         for (U32 i = 0; i < demo->renderables.size(); ++i) {
             const XMVECTOR pos = XMLoadFloat3(&demo->renderables[i].position);
@@ -428,15 +447,29 @@ void Update_Demo_State(DEMO_STATE* demo) {
             buffer_offset,
             span.size_bytes()
         );
-        graphics::Add_Transition_Barrier(
-            gr,
-            demo->const_buffer,
-            D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER
-        );
-        graphics::Flush_Resource_Barriers(gr);
-    }
 
-    graphics::Set_Pipeline_State(gr, demo->graphics_pso);
+    }
+    // Update dynamic texture.
+    {
+        U8 data[256] = {};
+        const F32 f = XMScalarModAngle((F32)demo->frame_stats.time) / XM_PI;
+        for (U32 i = 0; i < 256; ++i) {
+            data[i] = (U8)(255.0f * f);
+        }
+        Update_Tex2D_Subresource(gr, demo->dynamic_texture, 0, data, 16);
+    }
+    graphics::Add_Transition_Barrier(
+        gr,
+        demo->const_buffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER
+    );
+    graphics::Add_Transition_Barrier(
+        gr,
+        demo->dynamic_texture, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+    );
+    graphics::Flush_Resource_Barriers(gr);
+
+    graphics::Set_Pipeline_State(gr, demo->mesh_pso);
+    gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     gr->cmdlist->SetGraphicsRootConstantBufferView(
         1,
         graphics::Get_Resource(gr, demo->const_buffer)->GetGPUVirtualAddress()
@@ -448,7 +481,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
     }
 
     U32 num_triangles = 0;
-    for (U32 i = 0; i < demo->num_renderables_to_draw; ++i) {
+    for (U32 i = 0; i < demo->renderables.size(); ++i) {
         const RENDERABLE* renderable = &demo->renderables[i];
         num_triangles += renderable->mesh.num_indices / 3;
         gr->cmdlist->SetGraphicsRoot32BitConstants(
@@ -464,8 +497,13 @@ void Update_Demo_State(DEMO_STATE* demo) {
         gr->cmdlist->DrawInstanced(renderable->mesh.num_indices, 1, 0, 0);
     }
 
-    ImGui::Text("Number of triangles: %d", num_triangles);
-    ImGui::End();
+    graphics::Set_Pipeline_State(gr, demo->display_texture_pso);
+    gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+    gr->cmdlist->SetGraphicsRootDescriptorTable(
+        0,
+        graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->dynamic_texture_srv)
+    );
+    gr->cmdlist->DrawInstanced(4, 1, 0, 0);
 
     library::Draw_Gui(&demo->gui, gr);
 

@@ -1222,7 +1222,7 @@ U32 Get_Bytes_Per_Pixel(DXGI_FORMAT fmt) {
     }
 }
 
-export void Upload_Tex2D_Subresource_Data(
+export void Update_Tex2D_Subresource(
     CONTEXT* gr,
     RESOURCE_HANDLE texture,
     U32 subresource,

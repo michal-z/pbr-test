@@ -65,8 +65,9 @@
     </FxCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <FxCompile Include="..\src\shaders\display_texture_vs_ps.hlsl" />
     <FxCompile Include="..\src\shaders\imgui_vs_ps.hlsl" />
-    <FxCompile Include="..\src\shaders\test_ps.hlsl" />
+    <FxCompile Include="..\src\shaders\mesh_vs_ps.hlsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

@@ -140,7 +140,7 @@ export VECTOR<U8> Load_File(LPCSTR filename) {
     }
     MZ_DEFER(fclose(file));
     fseek(file, 0, SEEK_END);
-    long size = ftell(file);
+    const LONG size = ftell(file);
     if (size <= 0) {
         assert(0);
         return VECTOR<U8>();
@@ -300,7 +300,7 @@ export void Init_Gui_Context(IMGUI_CONTEXT* gui, graphics::CONTEXT* gr) {
         D3D12_RESOURCE_STATE_COPY_DEST,
         NULL
     );
-    graphics::Upload_Tex2D_Subresource_Data(gr, gui->font, 0, pixels, width * 4);
+    graphics::Update_Tex2D_Subresource(gr, gui->font, 0, pixels, width * 4);
     graphics::Add_Transition_Barrier(gr, gui->font, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
     gui->font_srv = graphics::Allocate_Cpu_Descriptors(gr, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1);
