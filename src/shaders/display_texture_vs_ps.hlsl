@@ -16,7 +16,7 @@ void Vertex_Shader(
         FLOAT2(1.0f, -1.0f),
         FLOAT2(1.0f, 1.0f),
     };
-    out_position_ndc = FLOAT4(0.25f * positions[vertex_id] + FLOAT2(0.75f, 0.75f), 0.0f, 1.0f);
+    out_position_ndc = FLOAT4(0.25f * positions[vertex_id] + FLOAT2(0.7f, 0.7f), 0.0f, 1.0f);
     out_uv = 0.5f * positions[vertex_id] + 0.5f;
 }
 

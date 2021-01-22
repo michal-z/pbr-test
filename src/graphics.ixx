@@ -3,12 +3,12 @@ module;
 export module graphics;
 namespace graphics {
 
-export constexpr U32 max_num_frames_in_flight = 3;
+export constexpr U32 max_num_frames_in_flight = 2;
 
 constexpr U32 max_num_resources = 256;
 constexpr U32 max_num_pipelines = 128;
 
-constexpr U32 num_swapchain_buffers = 3;
+constexpr U32 num_swapchain_buffers = 4;
 
 constexpr U32 num_rtv_descriptors = 128;
 constexpr U32 num_dsv_descriptors = 128;
@@ -16,7 +16,7 @@ constexpr U32 num_cbv_srv_uav_cpu_descriptors = 16 * 1024;
 constexpr U32 num_cbv_srv_uav_gpu_descriptors = 4 * 1024;
 
 constexpr U32 upload_alloc_alignment = 512;
-constexpr U32 upload_heap_capacity = 8 * 1024 * 1024;
+constexpr U32 upload_heap_capacity = 4 * 2048 * 2048;
 
 struct GPU_MEMORY_HEAP {
     ID3D12_RESOURCE* heap;
