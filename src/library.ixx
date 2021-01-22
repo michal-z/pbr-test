@@ -563,7 +563,20 @@ export void Deinit_Mipmap_Generator(MIPMAP_GENERATOR* mipgen, graphics::CONTEXT*
     }
 }
 
-export void Generate_Mipmaps(MIPMAP_GENERATOR* mipgen, CONTEXT* gr, graphics::RESOURCE_HANDLE texture) {
+export void Generate_Mipmaps(
+    MIPMAP_GENERATOR* mipgen,
+    graphics::CONTEXT* gr,
+    graphics::RESOURCE_HANDLE texture
+) {
+    assert(mipgen && gr);
+    const D3D12_RESOURCE_DESC texture_desc = graphics::Get_Resource_Desc(gr, texture);
+    assert(mipgen->format == texture_desc.Format);
+    assert(texture_desc.Width <= 2048 && texture_desc.Height <= 2048);
+    assert(texture_desc.Width == texture_desc.Height);
+    assert(texture_desc.MipLevels > 1);
+
+    for (U32 array_slice = 0; array_slice < texture_desc.DepthOrArraySize; ++array_slice) {
+    }
 }
 
 } // namespace library

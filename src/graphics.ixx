@@ -780,6 +780,12 @@ export inline U64 Get_Resource_Size(CONTEXT* gr, RESOURCE_HANDLE handle) {
     return resource->desc.Width;
 }
 
+export inline D3D12_RESOURCE_DESC Get_Resource_Desc(CONTEXT* gr, RESOURCE_HANDLE handle) {
+    RESOURCE* resource = Get_Resource_Info(&gr->resource_pool, handle);
+    assert(resource->desc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER);
+    return resource->desc;
+}
+
 export U32 Increment_Pipeline_Refcount(CONTEXT* gr, PIPELINE_HANDLE handle) {
     assert(gr);
 
