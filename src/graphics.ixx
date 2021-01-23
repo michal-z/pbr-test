@@ -415,7 +415,6 @@ export bool Init_Context(CONTEXT* gr, HWND window) {
 #endif
         &gr->d2d.factory
     ));
-
     VHR(gr->d2d.factory->CreateDevice(device_dxgi, &gr->d2d.device));
     VHR(gr->d2d.device->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &gr->d2d.context));
 
@@ -457,7 +456,6 @@ export bool Init_Context(CONTEXT* gr, HWND window) {
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
         D3D12_DESCRIPTOR_HEAP_FLAG_NONE
     );
-
     for (U32 frame_idx = 0; frame_idx < max_num_frames_in_flight; ++frame_idx) {
         Init_Descriptor_Heap(
             &gr->cbv_srv_uav_gpu_heaps[frame_idx],
@@ -1060,9 +1058,9 @@ export TUPLE<U8*, D3D12_GPU_VIRTUAL_ADDRESS> Allocate_Upload_Memory(
         Finish_Gpu_Commands(gr);
         Begin_Frame(gr);
 
-        auto t = Allocate_Gpu_Memory(&gr->upload_heaps[gr->frame_index], mem_size);
-        cpu_addr = eastl::get<0>(t);
-        gpu_addr = eastl::get<1>(t);
+        const auto [caddr, gaddr] = Allocate_Gpu_Memory(&gr->upload_heaps[gr->frame_index], mem_size);
+        cpu_addr = caddr;
+        gpu_addr = gaddr;
     }
     assert(cpu_addr != NULL && gpu_addr != 0);
     return { cpu_addr, gpu_addr };

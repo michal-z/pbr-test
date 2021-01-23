@@ -184,8 +184,8 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             Add_Mesh(mesh_paths[i], &demo->meshes, &all_vertices, &all_indices);
         }
     }
-    for (float z = -25.0f; z <= 26.0f; z += 3.0f) {
-        for (float x = -25.0f; x <= 26.0f; x += 3.0f) {
+    for (F32 z = -25.0f; z <= 26.0f; z += 3.0f) {
+        for (F32 x = -25.0f; x <= 26.0f; x += 3.0f) {
             demo->renderables.push_back({ .mesh = demo->meshes[0], .position = { x, 0.0f, z } });
         }
     }
