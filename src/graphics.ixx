@@ -186,12 +186,14 @@ RESOURCE_HANDLE Add_Resource(
     return { .index = (U16)slot_idx, .generation = (pool->generations[slot_idx] += 1) };
 }
 
+inline bool Is_Resource_Valid(RESOURCE_POOL* pool, RESOURCE_HANDLE handle) {
+    return handle.index > 0 && handle.index <= max_num_resources && handle.generation > 0 &&
+        handle.generation == pool->generations[handle.index];
+}
+
 RESOURCE* Get_Resource_Info(RESOURCE_POOL* pool, RESOURCE_HANDLE handle) {
     assert(pool);
-    assert(handle.index > 0 && handle.index <= max_num_resources);
-    assert(handle.generation > 0);
-    assert(handle.generation == pool->generations[handle.index]);
-
+    assert(Is_Resource_Valid(pool, handle));
     RESOURCE* resource = &pool->resources[handle.index];
     assert(resource->raw);
     return resource;
@@ -260,12 +262,14 @@ PIPELINE_HANDLE Add_Pipeline(
     return { .index = (U16)slot_idx, .generation = (pool->generations[slot_idx] += 1) };
 }
 
+inline bool Is_Pipeline_Valid(PIPELINE_POOL* pool, PIPELINE_HANDLE handle) {
+    return handle.index > 0 && handle.index <= max_num_pipelines && handle.generation > 0 &&
+        handle.generation == pool->generations[handle.index];
+}
+
 PIPELINE* Get_Pipeline_Info(PIPELINE_POOL* pool, PIPELINE_HANDLE handle) {
     assert(pool);
-    assert(handle.index > 0 && handle.index <= max_num_pipelines);
-    assert(handle.generation > 0);
-    assert(handle.generation == pool->generations[handle.index]);
-
+    assert(Is_Pipeline_Valid(pool, handle));
     PIPELINE* pipeline = &pool->pipelines[handle.index];
     assert(pipeline->pso && pipeline->root_signature);
     return pipeline;
@@ -693,7 +697,6 @@ export void Add_Transition_Barrier(
     D3D12_RESOURCE_STATES state_after
 ) {
     assert(gr);
-
     RESOURCE* resource = Get_Resource_Info(&gr->resource_pool, handle);
     assert(resource);
 
@@ -718,7 +721,6 @@ export RESOURCE_HANDLE Create_Committed_Resource(
     const D3D12_CLEAR_VALUE* clear_value
 ) {
     assert(gr && desc);
-
     ID3D12_RESOURCE* raw = NULL;
     VHR(gr->device->CreateCommittedResource(
         Get_Const_Ptr<D3D12_HEAP_PROPERTIES>({ .Type = heap_type }),
@@ -762,12 +764,15 @@ export U32 Increment_Resource_Refcount(CONTEXT* gr, RESOURCE_HANDLE handle) {
 
 export U32 Release_Resource(CONTEXT* gr, RESOURCE_HANDLE handle) {
     assert(gr);
-    RESOURCE* resource = Get_Resource_Info(&gr->resource_pool, handle);
-    const U32 refcount = resource->raw->Release();
-    if (refcount == 0) {
-        *resource = {};
+    if (Is_Resource_Valid(&gr->resource_pool, handle)) {
+        RESOURCE* resource = Get_Resource_Info(&gr->resource_pool, handle);
+        const U32 refcount = resource->raw->Release();
+        if (refcount == 0) {
+            *resource = {};
+        }
+        return refcount;
     }
-    return refcount;
+    return 0;
 }
 
 export inline ID3D12_RESOURCE* Get_Resource(CONTEXT* gr, RESOURCE_HANDLE handle) {
@@ -775,9 +780,12 @@ export inline ID3D12_RESOURCE* Get_Resource(CONTEXT* gr, RESOURCE_HANDLE handle)
 }
 
 export inline U64 Get_Resource_Size(CONTEXT* gr, RESOURCE_HANDLE handle) {
-    RESOURCE* resource = Get_Resource_Info(&gr->resource_pool, handle);
-    assert(resource->desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER);
-    return resource->desc.Width;
+    if (Is_Resource_Valid(&gr->resource_pool, handle)) {
+        RESOURCE* resource = Get_Resource_Info(&gr->resource_pool, handle);
+        assert(resource->desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER);
+        return resource->desc.Width;
+    }
+    return 0;
 }
 
 export inline D3D12_RESOURCE_DESC Get_Resource_Desc(CONTEXT* gr, RESOURCE_HANDLE handle) {
@@ -788,9 +796,7 @@ export inline D3D12_RESOURCE_DESC Get_Resource_Desc(CONTEXT* gr, RESOURCE_HANDLE
 
 export U32 Increment_Pipeline_Refcount(CONTEXT* gr, PIPELINE_HANDLE handle) {
     assert(gr);
-
     PIPELINE* pipeline = Get_Pipeline_Info(&gr->pipeline.pool, handle);
-
     const U32 refcount = pipeline->pso->AddRef();
     if (pipeline->root_signature->AddRef() != refcount) {
         assert(0);
@@ -799,13 +805,14 @@ export U32 Increment_Pipeline_Refcount(CONTEXT* gr, PIPELINE_HANDLE handle) {
 }
 
 export U32 Release_Pipeline(CONTEXT* gr, PIPELINE_HANDLE handle) {
+    if (!Is_Pipeline_Valid(&gr->pipeline.pool, handle)) {
+        return 0;
+    }
     PIPELINE* pipeline = Get_Pipeline_Info(&gr->pipeline.pool, handle);
-
     const U32 refcount = pipeline->pso->Release();
     if (pipeline->root_signature->Release() != refcount) {
         assert(0);
     }
-
     if (refcount == 0) {
         U64 hash_to_remove = 0;
         for (auto iter = gr->pipeline.map.begin(); iter != gr->pipeline.map.end(); ++iter) {
@@ -818,26 +825,22 @@ export U32 Release_Pipeline(CONTEXT* gr, PIPELINE_HANDLE handle) {
         gr->pipeline.map.erase(hash_to_remove);
         *pipeline = {};
     }
-
     return refcount;
 }
 
 export void Set_Pipeline_State(CONTEXT* gr, PIPELINE_HANDLE pipeline_handle) {
     // TODO: Do we need to unset pipeline state (0, 0)?
     PIPELINE* pipeline = Get_Pipeline_Info(&gr->pipeline.pool, pipeline_handle);
-
     if (pipeline_handle.index == gr->pipeline.current.index &&
         pipeline_handle.generation == gr->pipeline.current.generation) {
         return;
     }
-
     gr->cmdlist->SetPipelineState(pipeline->pso);
     if (pipeline->is_compute) {
         gr->cmdlist->SetComputeRootSignature(pipeline->root_signature);
     } else {
         gr->cmdlist->SetGraphicsRootSignature(pipeline->root_signature);
     }
-
     gr->pipeline.current = pipeline_handle;
 }
 
@@ -1094,10 +1097,6 @@ export inline D3D12_GPU_DESCRIPTOR_HANDLE Copy_Descriptors_To_Gpu_Heap(
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV
     );
     return base.gpu_handle;
-}
-
-export template<typename T> inline bool Is_Valid(const T handle) {
-    return handle.index != 0 && handle.generation != 0;
 }
 
 U32 Get_Bytes_Per_Pixel(DXGI_FORMAT fmt) {

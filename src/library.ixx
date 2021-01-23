@@ -362,12 +362,8 @@ export void Deinit_Gui_Context(IMGUI_CONTEXT* gui, graphics::CONTEXT* gr) {
     graphics::Release_Resource(gr, gui->font);
     graphics::Release_Pipeline(gr, gui->pso);
     for (U32 i = 0; i < graphics::max_num_frames_in_flight; ++i) {
-        if (graphics::Is_Valid(gui->vb[i])) {
-            graphics::Release_Resource(gr, gui->vb[i]);
-        }
-        if (graphics::Is_Valid(gui->ib[i])) {
-            graphics::Release_Resource(gr, gui->ib[i]);
-        }
+        graphics::Release_Resource(gr, gui->vb[i]);
+        graphics::Release_Resource(gr, gui->ib[i]);
     }
 }
 
@@ -397,12 +393,8 @@ export void Draw_Gui(IMGUI_CONTEXT* gui, graphics::CONTEXT* gr) {
     graphics::RESOURCE_HANDLE vb = gui->vb[gr->frame_index];
     graphics::RESOURCE_HANDLE ib = gui->ib[gr->frame_index];
 
-    if (!graphics::Is_Valid(vb) ||
-        graphics::Get_Resource_Size(gr, vb) < (draw_data->TotalVtxCount * sizeof ImDrawVert)) {
-
-        if (graphics::Is_Valid(vb)) {
-            graphics::Release_Resource(gr, vb);
-        }
+    if (graphics::Get_Resource_Size(gr, vb) < (draw_data->TotalVtxCount * sizeof ImDrawVert)) {
+        graphics::Release_Resource(gr, vb);
         gui->vb[gr->frame_index] = vb = graphics::Create_Committed_Resource(
             gr,
             D3D12_HEAP_TYPE_UPLOAD,
@@ -417,12 +409,8 @@ export void Draw_Gui(IMGUI_CONTEXT* gui, graphics::CONTEXT* gr) {
             &gui->vb_cpu_addr[gr->frame_index]
         ));
     }
-    if (!graphics::Is_Valid(ib) ||
-        graphics::Get_Resource_Size(gr, ib) < (draw_data->TotalIdxCount * sizeof ImDrawIdx)) {
-
-        if (graphics::Is_Valid(ib)) {
-            graphics::Release_Resource(gr, ib);
-        }
+    if (graphics::Get_Resource_Size(gr, ib) < (draw_data->TotalIdxCount * sizeof ImDrawIdx)) {
+        graphics::Release_Resource(gr, ib);
         gui->ib[gr->frame_index] = ib = graphics::Create_Committed_Resource(
             gr,
             D3D12_HEAP_TYPE_UPLOAD,
