@@ -67,7 +67,7 @@ void Add_Mesh(
     VECTOR<XMFLOAT3> positions;
     VECTOR<XMFLOAT3> normals;
     VECTOR<U32> indices;
-    library::Load_Mesh(filename, &positions, &normals, &indices);
+    library::Load_Mesh(filename, &indices, &positions, &normals, NULL, NULL);
 
     VECTOR<VERTEX> vertices(positions.size());
     for (U32 i = 0; i < vertices.size(); ++i) {

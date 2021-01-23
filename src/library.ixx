@@ -153,12 +153,23 @@ export VECTOR<U8> Load_File(LPCSTR filename) {
 
 export void Load_Mesh(
     LPCSTR filename,
+    VECTOR<U32>* indices,
     VECTOR<XMFLOAT3>* positions,
     VECTOR<XMFLOAT3>* normals,
-    VECTOR<U32>* indices
+    VECTOR<XMFLOAT3>* texcoords,
+    VECTOR<XMFLOAT3>* tangents
 ) {
-    assert(filename && positions && normals && indices);
-    assert(positions->empty() && normals->empty() && indices->empty());
+    assert(filename && positions && indices);
+    assert(positions->empty() && indices->empty());
+    if (normals) {
+        assert(normals->empty());
+    }
+    if (tangents) {
+        assert(tangents->empty());
+    }
+    if (texcoords) {
+        assert(texcoords->empty());
+    }
 
     cgltf_options options = {};
     cgltf_data* data = NULL;
@@ -168,12 +179,11 @@ export void Load_Mesh(
         result = cgltf_load_buffers(&options, data, filename);
         assert(result == cgltf_result_success);
     }
-    const U32 num_indices = (U32)data->meshes[0].primitives[0].indices->count;
     const U32 num_vertices = (U32)data->meshes[0].primitives[0].attributes[0].data->count;
+    const U32 num_indices = (U32)data->meshes[0].primitives[0].indices->count;
 
-    positions->reserve(num_vertices);
-    normals->reserve(num_vertices);
-    indices->reserve(num_indices);
+    positions->resize(num_vertices);
+    indices->resize(num_indices);
 
     // Indices.
     {
@@ -187,23 +197,23 @@ export void Load_Mesh(
         const auto data_addr = (const U8*)accessor->buffer_view->buffer->data + accessor->offset +
             accessor->buffer_view->offset;
 
+        U32* dst_addr = indices->data();
+
         if (accessor->stride == 1) {
-            const U8* data_u8 = (const U8*)data_addr;
+            assert(accessor->component_type == cgltf_component_type_r_8u);
+            const U8* src = (const U8*)data_addr;
             for (U32 idx = 0; idx < accessor->count; ++idx) {
-                indices->push_back((U32)(*data_u8++));
+                dst_addr[idx] = (U32)src[idx];
             }
         } else if (accessor->stride == 2) {
-            const U16* data_u16 = (const U16*)data_addr;
+            assert(accessor->component_type == cgltf_component_type_r_16u);
+            const U16* src = (const U16*)data_addr;
             for (U32 idx = 0; idx < accessor->count; ++idx) {
-                indices->push_back((U32)(*data_u16++));
+                dst_addr[idx] = (U32)src[idx];
             }
         } else if (accessor->stride == 4) {
-            indices->resize(indices->size() + accessor->count);
-            memcpy(
-                &indices->data()[indices->size() - accessor->count],
-                data_addr,
-                accessor->count * accessor->stride
-            );
+            assert(accessor->component_type == cgltf_component_type_r_32u);
+            memcpy(dst_addr, data_addr, accessor->count * accessor->stride);
         } else {
             assert(0);
         }
@@ -226,21 +236,28 @@ export void Load_Mesh(
                 accessor->offset + accessor->buffer_view->offset;
 
             if (attrib->type == cgltf_attribute_type_position) {
+                // POSITION
                 assert(accessor->type == cgltf_type_vec3);
-                positions->resize(positions->size() + accessor->count);
-                memcpy(
-                    &positions->data()[positions->size() - accessor->count],
-                    data_addr,
-                    accessor->count * accessor->stride
-                );
-            } else if (attrib->type == cgltf_attribute_type_normal) {
+                assert(accessor->component_type == cgltf_component_type_r_32f);
+                memcpy(positions->data(), data_addr, accessor->count * accessor->stride);
+            } else if (normals && attrib->type == cgltf_attribute_type_normal) {
+                // NORMAL
                 assert(accessor->type == cgltf_type_vec3);
-                normals->resize(normals->size() + accessor->count);
-                memcpy(
-                    &normals->data()[normals->size() - accessor->count],
-                    data_addr,
-                    accessor->count * accessor->stride
-                );
+                assert(accessor->component_type == cgltf_component_type_r_32f);
+                normals->resize(num_vertices);
+                memcpy(normals->data(), data_addr, accessor->count * accessor->stride);
+            } else if (tangents && attrib->type == cgltf_attribute_type_tangent) {
+                // TANGENT
+                assert(accessor->type == cgltf_type_vec3);
+                assert(accessor->component_type == cgltf_component_type_r_32f);
+                tangents->resize(num_vertices);
+                memcpy(tangents->data(), data_addr, accessor->count * accessor->stride);
+            } else if (texcoords && attrib->type == cgltf_attribute_type_texcoord) {
+                // TEXCOORD
+                assert(accessor->type == cgltf_type_vec2);
+                assert(accessor->component_type == cgltf_component_type_r_32f);
+                texcoords->resize(num_vertices);
+                memcpy(texcoords->data(), data_addr, accessor->count * accessor->stride);
             }
         }
         assert(!positions->empty() && positions->size() == normals->size());
