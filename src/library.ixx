@@ -576,6 +576,8 @@ export void Generate_Mipmaps(
     assert(texture_desc.MipLevels > 1);
 
     for (U32 array_slice = 0; array_slice < texture_desc.DepthOrArraySize; ++array_slice) {
+        // Save heap size for temporary descriptor allocations.
+        const U32 cbv_srv_uav_cpu_heap_size = gr->cbv_srv_uav_cpu_heap.size;
         const D3D12_CPU_DESCRIPTOR_HANDLE texture_srv = graphics::Allocate_Cpu_Descriptors(
             gr,
             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
@@ -604,8 +606,10 @@ export void Generate_Mipmaps(
             (U32)eastl::size(mipgen->scratch_textures),
             mipgen->base_uav
         );
-        graphics::Set_Pipeline_State(gr, mipgen->pso);
+        // Restore heap size - we're done with temporary descriptor allocations.
+        gr->cbv_srv_uav_cpu_heap.size = cbv_srv_uav_cpu_heap_size;
 
+        graphics::Set_Pipeline_State(gr, mipgen->pso);
         U32 total_num_mips = (U32)(texture_desc.MipLevels - 1);
         U32 current_src_mip_level = 0;
 
@@ -641,7 +645,7 @@ export void Generate_Mipmaps(
             graphics::Flush_Resource_Barriers(gr);
 
             for (U32 mip_idx = 0; mip_idx < dispatch_num_mips; ++mip_idx) {
-                const auto dest = CD3DX12_TEXTURE_COPY_LOCATION(
+                const auto dst = CD3DX12_TEXTURE_COPY_LOCATION(
                     graphics::Get_Resource(gr, texture),
                     mip_idx + 1 + current_src_mip_level + array_slice * texture_desc.MipLevels
                 );
@@ -657,7 +661,7 @@ export void Generate_Mipmaps(
                     texture_desc.Height >> (mip_idx + 1 + current_src_mip_level),
                     1
                 );
-                gr->cmdlist->CopyTextureRegion(&dest, 0, 0, 0, &src, &box);
+                gr->cmdlist->CopyTextureRegion(&dst, 0, 0, 0, &src, &box);
             }
 
             if ((total_num_mips -= dispatch_num_mips) == 0) {
