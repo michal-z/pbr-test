@@ -576,6 +576,95 @@ export void Generate_Mipmaps(
     assert(texture_desc.MipLevels > 1);
 
     for (U32 array_slice = 0; array_slice < texture_desc.DepthOrArraySize; ++array_slice) {
+        const D3D12_CPU_DESCRIPTOR_HANDLE texture_srv = graphics::Allocate_Cpu_Descriptors(
+            gr,
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+            1
+        );
+        gr->device->CreateShaderResourceView(
+            graphics::Get_Resource(gr, texture),
+            Get_Const_Ptr<D3D12_SHADER_RESOURCE_VIEW_DESC>({
+                .ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY,
+                .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                .Texture2DArray = {
+                    .MipLevels = texture_desc.MipLevels,
+                    .FirstArraySlice = array_slice,
+                    .ArraySize = 1,
+                }
+            }),
+            texture_srv
+        );
+        const D3D12_GPU_DESCRIPTOR_HANDLE table_base = graphics::Copy_Descriptors_To_Gpu_Heap(
+            gr,
+            1,
+            texture_srv
+        );
+        graphics::Copy_Descriptors_To_Gpu_Heap(
+            gr,
+            (U32)eastl::size(mipgen->scratch_textures),
+            mipgen->base_uav
+        );
+        graphics::Set_Pipeline_State(gr, mipgen->pso);
+
+        U32 total_num_mips = (U32)(texture_desc.MipLevels - 1);
+        U32 current_src_mip_level = 0;
+
+        for (;;) {
+            for (U32 i = 0; i < eastl::size(mipgen->scratch_textures); ++i) {
+                graphics::Add_Transition_Barrier(
+                    gr,
+                    mipgen->scratch_textures[i],
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+                );
+            }
+            graphics::Add_Transition_Barrier(gr, texture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            graphics::Flush_Resource_Barriers(gr);
+
+            const U32 dispatch_num_mips = total_num_mips >= 4 ? 4 : total_num_mips;
+            gr->cmdlist->SetComputeRoot32BitConstant(0, current_src_mip_level, 0);
+            gr->cmdlist->SetComputeRoot32BitConstant(0, dispatch_num_mips, 1);
+            gr->cmdlist->SetComputeRootDescriptorTable(1, table_base);
+            gr->cmdlist->Dispatch(
+                (U32)(texture_desc.Width >> (3 + current_src_mip_level)),
+                texture_desc.Height >> (3 + current_src_mip_level),
+                1
+            );
+
+            for (U32 i = 0; i < eastl::size(mipgen->scratch_textures); ++i) {
+                graphics::Add_Transition_Barrier(
+                    gr,
+                    mipgen->scratch_textures[i],
+                    D3D12_RESOURCE_STATE_COPY_SOURCE
+                );
+            }
+            graphics::Add_Transition_Barrier(gr, texture, D3D12_RESOURCE_STATE_COPY_DEST);
+            graphics::Flush_Resource_Barriers(gr);
+
+            for (U32 mip_idx = 0; mip_idx < dispatch_num_mips; ++mip_idx) {
+                const auto dest = CD3DX12_TEXTURE_COPY_LOCATION(
+                    graphics::Get_Resource(gr, texture),
+                    mip_idx + 1 + current_src_mip_level + array_slice * texture_desc.MipLevels
+                );
+                const auto src = CD3DX12_TEXTURE_COPY_LOCATION(
+                    graphics::Get_Resource(gr, mipgen->scratch_textures[mip_idx]),
+                    0
+                );
+                const auto box = CD3DX12_BOX(
+                    0,
+                    0,
+                    0,
+                    (U32)(texture_desc.Width >> (mip_idx + 1 + current_src_mip_level)),
+                    texture_desc.Height >> (mip_idx + 1 + current_src_mip_level),
+                    1
+                );
+                gr->cmdlist->CopyTextureRegion(&dest, 0, 0, 0, &src, &box);
+            }
+
+            if ((total_num_mips -= dispatch_num_mips) == 0) {
+                break;
+            }
+            current_src_mip_level += dispatch_num_mips;
+        }
     }
 }
 

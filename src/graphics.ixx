@@ -1350,8 +1350,7 @@ export TUPLE<RESOURCE_HANDLE, D3D12_CPU_DESCRIPTOR_HANDLE> Create_Texture_From_F
         gr,
         D3D12_HEAP_TYPE_DEFAULT,
         D3D12_HEAP_FLAG_NONE,
-        // TODO: Generate all mipmap levels.
-        Get_Const_Ptr(CD3DX12_RESOURCE_DESC::Tex2D(dxgi_format, image_width, image_height, 1, 1)),
+        Get_Const_Ptr(CD3DX12_RESOURCE_DESC::Tex2D(dxgi_format, image_width, image_height)),
         D3D12_RESOURCE_STATE_COPY_DEST,
         NULL
     );

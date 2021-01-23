@@ -313,6 +313,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         );
         demo->ao_texture = texture;
         demo->ao_texture_srv = srv;
+        library::Generate_Mipmaps(&mipgen, gr, texture);
         graphics::Add_Transition_Barrier(
             gr,
             demo->ao_texture,
