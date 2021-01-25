@@ -5,12 +5,7 @@ import graphics;
 import library;
 namespace demo {
 
-struct VERTEX {
-    XMFLOAT3 position;
-    XMFLOAT3 normal;
-    XMFLOAT4 tangent;
-    XMFLOAT2 uv;
-};
+#include "cpp_hlsl_common.h"
 
 struct MESH {
     U32 index_offset;
@@ -36,12 +31,13 @@ struct DEMO_STATE {
     graphics::PIPELINE_HANDLE mesh_debug_pso;
     graphics::RESOURCE_HANDLE vertex_buffer;
     graphics::RESOURCE_HANDLE index_buffer;
-    graphics::RESOURCE_HANDLE const_buffer;
+    graphics::RESOURCE_HANDLE renderable_const_buffer;
     graphics::RESOURCE_HANDLE depth_texture;
     graphics::RESOURCE_HANDLE dynamic_texture;
     graphics::RESOURCE_HANDLE ao_texture;
     D3D12_CPU_DESCRIPTOR_HANDLE vertex_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE index_buffer_srv;
+    D3D12_CPU_DESCRIPTOR_HANDLE renderable_const_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE depth_texture_dsv;
     D3D12_CPU_DESCRIPTOR_HANDLE dynamic_texture_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE ao_texture_srv;
@@ -265,13 +261,33 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         demo->index_buffer_srv
     );
 
-    demo->const_buffer = graphics::Create_Committed_Resource(
+    demo->renderable_const_buffer = graphics::Create_Committed_Resource(
         gr,
         D3D12_HEAP_TYPE_DEFAULT,
         D3D12_HEAP_FLAG_NONE,
-        Get_Const_Ptr(CD3DX12_RESOURCE_DESC::Buffer(256 * 1024)),
+        Get_Const_Ptr(
+            CD3DX12_RESOURCE_DESC::Buffer(demo->renderables.size() * sizeof RENDERABLE_CONSTANTS)
+        ),
         D3D12_RESOURCE_STATE_COPY_DEST,
         NULL
+    );
+    demo->renderable_const_buffer_srv = graphics::Allocate_Cpu_Descriptors(
+        gr,
+        D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+        1
+    );
+    gr->device->CreateShaderResourceView(
+        graphics::Get_Resource(gr, demo->renderable_const_buffer),
+        Get_Const_Ptr<D3D12_SHADER_RESOURCE_VIEW_DESC>({
+            .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
+            .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+            .Buffer = {
+                .FirstElement = 0,
+                .NumElements = (U32)demo->renderables.size(),
+                .StructureByteStride = sizeof RENDERABLE_CONSTANTS,
+            }
+        }),
+        demo->renderable_const_buffer_srv
     );
 
     // Create depth texture.
@@ -381,7 +397,7 @@ void Deinit_Demo_State(DEMO_STATE* demo) {
     MZ_SAFE_RELEASE(demo->hud.text_format);
     graphics::Release_Resource(gr, demo->vertex_buffer);
     graphics::Release_Resource(gr, demo->index_buffer);
-    graphics::Release_Resource(gr, demo->const_buffer);
+    graphics::Release_Resource(gr, demo->renderable_const_buffer);
     graphics::Release_Resource(gr, demo->depth_texture);
     graphics::Release_Resource(gr, demo->dynamic_texture);
     graphics::Release_Resource(gr, demo->ao_texture);
@@ -430,7 +446,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
     }
     // Handle camera movement with 'WASD' keys.
     {
-        const F32 speed = 10.0f;
+        const F32 speed = 5.0f;
         const F32 delta_time = demo->frame_stats.delta_time;
         const XMMATRIX transform = XMMatrixRotationX(demo->camera.pitch) *
             XMMatrixRotationY(demo->camera.yaw);
@@ -472,15 +488,13 @@ void Update_Demo_State(DEMO_STATE* demo) {
     gr->cmdlist->ClearDepthStencilView(demo->depth_texture_dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, NULL);
     gr->cmdlist->ClearRenderTargetView(back_buffer_rtv, XMVECTORF32{ 0.2f, 0.4f, 0.8f, 1.0f }, 0, NULL);
 
-    // Upload constant data.
-    {
-        graphics::Add_Transition_Barrier(gr, demo->const_buffer, D3D12_RESOURCE_STATE_COPY_DEST);
-        graphics::Flush_Resource_Barriers(gr);
+    D3D12_GPU_VIRTUAL_ADDRESS glob_buffer_addr = {};
 
-        const auto [span, buffer, buffer_offset] = graphics::Allocate_Upload_Buffer_Region<XMFLOAT4X4A>(
-            gr,
-            (U32)demo->renderables.size() + 1
-        );
+    // Upload 'GLOBALS' data.
+    {
+        const auto [cpu_addr, gpu_addr] = graphics::Allocate_Upload_Memory(gr, sizeof GLOBALS);
+        glob_buffer_addr = gpu_addr;
+
         XMMATRIX world_to_clip = XMMatrixLookToLH(
             XMLoadFloat3(&demo->camera.position),
             XMLoadFloat3(&demo->camera.forward),
@@ -492,23 +506,39 @@ void Update_Demo_State(DEMO_STATE* demo) {
             0.1f,
             100.0f
         );
-        XMStoreFloat4x4A(&span[0], XMMatrixTranspose(world_to_clip));
-
+        GLOBALS* constants = (GLOBALS*)cpu_addr;
+        XMStoreFloat4x4(&constants->world_to_clip, XMMatrixTranspose(world_to_clip));
+    }
+    // Upload 'RENDERABLE_CONSTANTS' data.
+    {
+        graphics::Add_Transition_Barrier(
+            gr,
+            demo->renderable_const_buffer,
+            D3D12_RESOURCE_STATE_COPY_DEST
+        );
+        graphics::Flush_Resource_Barriers(gr);
+        const auto [span, buffer, buffer_offset] =
+            graphics::Allocate_Upload_Buffer_Region<RENDERABLE_CONSTANTS>(
+                gr,
+                (U32)demo->renderables.size()
+            );
         for (U32 i = 0; i < demo->renderables.size(); ++i) {
             const XMVECTOR pos = XMLoadFloat3(&demo->renderables[i].position);
-            XMStoreFloat4x4A(&span[i + 1], XMMatrixTranspose(XMMatrixTranslationFromVector(pos)));
+            XMStoreFloat4x4(
+                &span[i].object_to_world,
+                XMMatrixTranspose(XMMatrixTranslationFromVector(pos))
+            );
         }
         gr->cmdlist->CopyBufferRegion(
-            graphics::Get_Resource(gr, demo->const_buffer),
+            graphics::Get_Resource(gr, demo->renderable_const_buffer),
             0,
             buffer,
             buffer_offset,
             span.size_bytes()
         );
-
         graphics::Add_Transition_Barrier(
             gr,
-            demo->const_buffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER
+            demo->renderable_const_buffer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE
         );
         graphics::Flush_Resource_Barriers(gr);
     }
@@ -519,7 +549,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
         demo->vertex_buffer_srv
     );
     graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->index_buffer_srv);
-    const auto glob_buffer_addr = graphics::Get_Resource(gr, demo->const_buffer)->GetGPUVirtualAddress();
+    graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->renderable_const_buffer_srv);
 
     graphics::Set_Pipeline_State(gr, demo->mesh_pso);
     gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -557,7 +587,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
                 }),
                 0
             );
-            gr->cmdlist->DrawInstanced(renderable->mesh.num_indices * 4, 1, 0, 0);
+            gr->cmdlist->DrawInstanced(renderable->mesh.num_indices * 6, 1, 0, 0);
         }
     }
 
