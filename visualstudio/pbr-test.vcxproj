@@ -172,6 +172,7 @@
     <ClCompile Include="..\src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\src\cpp_hlsl_common.h" />
     <ClInclude Include="..\src\external\cgltf.h" />
     <ClInclude Include="..\src\external\imgui\imconfig.h" />
     <ClInclude Include="..\src\external\imgui\imgui.h" />

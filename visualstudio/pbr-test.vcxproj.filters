@@ -95,6 +95,7 @@
     <ClInclude Include="..\src\external\imgui\imstb_truetype.h">
       <Filter>external\imgui</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\cpp_hlsl_common.h" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="EASTL.natvis" />
