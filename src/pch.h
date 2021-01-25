@@ -34,7 +34,9 @@
 #include "cgltf.h"
 #include "imgui/imgui.h"
 #include "DirectXMath/DirectXMath.h"
+#include "DirectXMath/DirectXPackedVector.h"
 using namespace DirectX;
+using namespace DirectX::PackedVector;
 
 #pragma warning(push)
 #pragma warning(disable : 4324 4505)

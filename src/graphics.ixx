@@ -1225,7 +1225,7 @@ export void Update_Tex2D_Subresource(
     CONTEXT* gr,
     RESOURCE_HANDLE texture,
     U32 subresource,
-    U8* data,
+    void* data,
     U32 row_pitch
 ) {
     assert(gr);
@@ -1249,7 +1249,7 @@ export void Update_Tex2D_Subresource(
     for (U32 y = 0; y < layout.Footprint.Height; ++y) {
         memcpy(
             &span[y * layout.Footprint.RowPitch],
-            data + y * row_pitch,
+            (U8*)data + y * row_pitch,
             layout.Footprint.Width * Get_Bytes_Per_Pixel(resource->desc.Format)
         );
     }
