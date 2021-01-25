@@ -8,6 +8,7 @@ namespace demo {
 struct VERTEX {
     XMFLOAT3 position;
     XMFLOAT3 normal;
+    XMFLOAT2 uv;
 };
 
 struct MESH {
@@ -66,12 +67,14 @@ void Add_Mesh(
 
     VECTOR<XMFLOAT3> positions;
     VECTOR<XMFLOAT3> normals;
+    VECTOR<XMFLOAT2> uvs;
     VECTOR<U32> indices;
-    library::Load_Mesh(filename, &indices, &positions, &normals, NULL, NULL);
+    library::Load_Mesh(filename, &indices, &positions, &normals, &uvs, NULL);
+    assert(!normals.empty() && !uvs.empty());
 
     VECTOR<VERTEX> vertices(positions.size());
     for (U32 i = 0; i < vertices.size(); ++i) {
-        vertices[i] = { positions[i], normals[i] };
+        vertices[i] = { positions[i], normals[i], uvs[i] };
     }
     meshes->push_back({
         .index_offset = (U32)all_indices->size(),
@@ -184,11 +187,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             Add_Mesh(mesh_paths[i], &demo->meshes, &all_vertices, &all_indices);
         }
     }
-    for (F32 z = -25.0f; z <= 26.0f; z += 3.0f) {
-        for (F32 x = -25.0f; x <= 26.0f; x += 3.0f) {
-            demo->renderables.push_back({ .mesh = demo->meshes[0], .position = { x, 0.0f, z } });
-        }
-    }
+    demo->renderables.push_back({ .mesh = demo->meshes[0], .position = { 0.0f, 0.0f, 0.0f } });
 
     demo->vertex_buffer = graphics::Create_Committed_Resource(
         gr,
@@ -335,7 +334,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     library::Init_Frame_Stats(&demo->frame_stats);
 
     demo->camera = {
-        .position = XMFLOAT3(0.0f, 24.0f, -36.0f),
+        .position = XMFLOAT3(0.0f, 3.0f, -3.0f),
         .pitch = XM_PIDIV4,
         .yaw = 0.0f,
     };
@@ -502,10 +501,8 @@ void Update_Demo_State(DEMO_STATE* demo) {
         gr->cmdlist->SetGraphicsRootDescriptorTable(2, table_base);
     }
 
-    U32 num_triangles = 0;
     for (U32 i = 0; i < demo->renderables.size(); ++i) {
         const RENDERABLE* renderable = &demo->renderables[i];
-        num_triangles += renderable->mesh.num_indices / 3;
         gr->cmdlist->SetGraphicsRoot32BitConstants(
             0,
             3,

@@ -156,7 +156,7 @@ export void Load_Mesh(
     VECTOR<U32>* indices,
     VECTOR<XMFLOAT3>* positions,
     VECTOR<XMFLOAT3>* normals,
-    VECTOR<XMFLOAT3>* texcoords,
+    VECTOR<XMFLOAT2>* texcoords,
     VECTOR<XMFLOAT3>* tangents
 ) {
     assert(filename && positions && indices);

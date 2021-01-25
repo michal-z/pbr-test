@@ -14,13 +14,14 @@ struct DRAW_COMMAND {
 struct INPUT_VERTEX {
     FLOAT3 position;
     FLOAT3 normal;
+    FLOAT2 uv;
 };
 
 struct OUTPUT_VERTEX {
     FLOAT4 position_ndc : SV_Position;
     FLOAT3 position : _Position;
     FLOAT3 normal : _Normal;
-    FLOAT3 color : _Color;
+    FLOAT2 uv : _Uv;
 };
 
 struct CONSTANTS {
@@ -30,22 +31,10 @@ struct CONSTANTS {
     } objects[1024];
 };
 
+ConstantBuffer<DRAW_COMMAND> cbv_draw_cmd : register(b0);
 ConstantBuffer<CONSTANTS> cbv_const : register(b1);
-
 StructuredBuffer<INPUT_VERTEX> srv_vertices : register(t0);
 Buffer<U32> srv_indices : register(t1);
-
-U32 Hash(U32 a) {
-    a = (a + 0x7ed55d16) + (a << 12);
-    a = (a ^ 0xc761c23c) ^ (a >> 19);
-    a = (a + 0x165667b1) + (a << 5);
-    a = (a + 0xd3a2646c) ^ (a << 9);
-    a = (a + 0xfd7046c5) + (a << 3);
-    a = (a ^ 0xb55a4f09) ^ (a >> 16);
-    return a;
-}
-
-ConstantBuffer<DRAW_COMMAND> cbv_draw_cmd : register(b0);
 
 [RootSignature(ROOT_SIGNATURE)]
 void Vertex_Shader(
@@ -60,12 +49,6 @@ void Vertex_Shader(
     const FLOAT4X4 object_to_world = cbv_const.objects[cbv_draw_cmd.renderable_id].object_to_world;
     const FLOAT4X4 world_to_clip = cbv_const.world_to_clip;
 
-    FLOAT3 color;
-    {
-        const U32 hash0 = Hash(cbv_draw_cmd.renderable_id);
-        color = FLOAT3(hash0 & 0xFF, (hash0 >> 8) & 0xFF, (hash0 >> 16) & 0xFF) / 255.0;
-    }
-
     position = mul(position, object_to_world);
     output.position = position.xyz;
 
@@ -73,7 +56,7 @@ void Vertex_Shader(
     output.position_ndc = position;
 
     output.normal = mul(srv_vertices[vertex_index].normal, (FLOAT3X3)object_to_world);
-    output.color = color;
+    output.uv = srv_vertices[vertex_index].uv;
 }
 
 void Pixel_Shader(
@@ -101,7 +84,7 @@ void Pixel_Shader(
         const F32 n_dot_l = saturate(dot(normal, l));
         color += n_dot_l * light_colors[i];
     }
-    color *= input.color;
 
-    out_color = FLOAT4(0.05f + color, 1.0f);
+    //out_color = FLOAT4(0.05f + color, 1.0f);
+    out_color = FLOAT4(input.uv, 0.0f, 1.0f);
 }
