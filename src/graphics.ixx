@@ -796,9 +796,7 @@ export U32 Increment_Pipeline_Refcount(CONTEXT* gr, PIPELINE_HANDLE handle) {
     assert(gr);
     PIPELINE* pipeline = Get_Pipeline_Info(&gr->pipeline.pool, handle);
     const U32 refcount = pipeline->pso->AddRef();
-    if (pipeline->root_signature->AddRef() != refcount) {
-        assert(0);
-    }
+    pipeline->root_signature->AddRef();
     return refcount;
 }
 
@@ -808,9 +806,7 @@ export U32 Release_Pipeline(CONTEXT* gr, PIPELINE_HANDLE handle) {
     }
     PIPELINE* pipeline = Get_Pipeline_Info(&gr->pipeline.pool, handle);
     const U32 refcount = pipeline->pso->Release();
-    if (pipeline->root_signature->Release() != refcount) {
-        assert(0);
-    }
+    pipeline->root_signature->Release();
     if (refcount == 0) {
         U64 hash_to_remove = 0;
         for (auto iter = gr->pipeline.map.begin(); iter != gr->pipeline.map.end(); ++iter) {

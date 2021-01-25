@@ -157,7 +157,7 @@ export void Load_Mesh(
     VECTOR<XMFLOAT3>* positions,
     VECTOR<XMFLOAT3>* normals,
     VECTOR<XMFLOAT2>* texcoords,
-    VECTOR<XMFLOAT3>* tangents
+    VECTOR<XMFLOAT4>* tangents
 ) {
     assert(filename && positions && indices);
     assert(positions->empty() && indices->empty());
@@ -248,7 +248,7 @@ export void Load_Mesh(
                 memcpy(normals->data(), data_addr, accessor->count * accessor->stride);
             } else if (tangents && attrib->type == cgltf_attribute_type_tangent) {
                 // TANGENT
-                assert(accessor->type == cgltf_type_vec3);
+                assert(accessor->type == cgltf_type_vec4);
                 assert(accessor->component_type == cgltf_component_type_r_32f);
                 tangents->resize(num_vertices);
                 memcpy(tangents->data(), data_addr, accessor->count * accessor->stride);

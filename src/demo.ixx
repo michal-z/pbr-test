@@ -8,6 +8,7 @@ namespace demo {
 struct VERTEX {
     XMFLOAT3 position;
     XMFLOAT3 normal;
+    XMFLOAT4 tangent;
     XMFLOAT2 uv;
 };
 
@@ -30,6 +31,7 @@ struct DEMO_STATE {
     VECTOR<RENDERABLE> renderables;
     graphics::PIPELINE_HANDLE display_texture_pso;
     graphics::PIPELINE_HANDLE mesh_pso;
+    graphics::PIPELINE_HANDLE mesh_debug_pso;
     graphics::RESOURCE_HANDLE vertex_buffer;
     graphics::RESOURCE_HANDLE index_buffer;
     graphics::RESOURCE_HANDLE const_buffer;
@@ -67,14 +69,15 @@ void Add_Mesh(
 
     VECTOR<XMFLOAT3> positions;
     VECTOR<XMFLOAT3> normals;
+    VECTOR<XMFLOAT4> tangents;
     VECTOR<XMFLOAT2> uvs;
     VECTOR<U32> indices;
-    library::Load_Mesh(filename, &indices, &positions, &normals, &uvs, NULL);
-    assert(!normals.empty() && !uvs.empty());
+    library::Load_Mesh(filename, &indices, &positions, &normals, &uvs, &tangents);
+    assert(!normals.empty() && !uvs.empty() && !tangents.empty());
 
     VECTOR<VERTEX> vertices(positions.size());
     for (U32 i = 0; i < vertices.size(); ++i) {
-        vertices[i] = { positions[i], normals[i], uvs[i] };
+        vertices[i] = { positions[i], normals[i], tangents[i], uvs[i] };
     }
     meshes->push_back({
         .index_offset = (U32)all_indices->size(),
@@ -157,6 +160,26 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         demo->mesh_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
+    {
+        const VECTOR<U8> vs = library::Load_File("data/shaders/mesh_debug_vs_ps.vs.cso");
+        const VECTOR<U8> ps = library::Load_File("data/shaders/mesh_debug_vs_ps.ps.cso");
+
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
+            .VS = { vs.data(), vs.size() },
+            .PS = { ps.data(), ps.size() },
+            .BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT),
+            .SampleMask = UINT32_MAX,
+            .RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT),
+            .DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT),
+            .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE,
+            .NumRenderTargets = 1,
+            .RTVFormats = { DXGI_FORMAT_R8G8B8A8_UNORM },
+            .DSVFormat = DXGI_FORMAT_D32_FLOAT,
+            .SampleDesc = { .Count = 1, .Quality = 0 },
+        };
+        desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+        demo->mesh_debug_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
+    }
 
     VHR(gr->d2d.context->CreateSolidColorBrush(
         { .r = 1.0f, .g = 0.0f, .b = 0.0f, .a = 0.5f },
@@ -180,7 +203,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     VECTOR<VERTEX> all_vertices;
     VECTOR<U32> all_indices;
     {
-        LPCSTR mesh_paths[] = {
+        const LPCSTR mesh_paths[] = {
             "data/SciFiHelmet/SciFiHelmet.gltf",
         };
         for (U32 i = 0; i < eastl::size(mesh_paths); ++i) {
@@ -362,6 +385,7 @@ void Deinit_Demo_State(DEMO_STATE* demo) {
     graphics::Release_Resource(gr, demo->ao_texture);
     graphics::Release_Pipeline(gr, demo->display_texture_pso);
     graphics::Release_Pipeline(gr, demo->mesh_pso);
+    graphics::Release_Pipeline(gr, demo->mesh_debug_pso);
     graphics::Deinit_Context(gr);
 }
 
@@ -392,6 +416,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
     }
     // Handle camera movement with 'WASD' keys.
     {
+        const F32 speed = 10.0f;
         const F32 delta_time = demo->frame_stats.delta_time;
         const XMMATRIX transform = XMMatrixRotationX(demo->camera.pitch) *
             XMMatrixRotationY(demo->camera.yaw);
@@ -399,10 +424,10 @@ void Update_Demo_State(DEMO_STATE* demo) {
             XMVector3Transform(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), transform)
         );
         XMStoreFloat3(&demo->camera.forward, forward);
-        const XMVECTOR right = 20.0f * delta_time * XMVector3Normalize(
+        const XMVECTOR right = speed * delta_time * XMVector3Normalize(
             XMVector3Cross(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), forward)
         );
-        forward = 20.0f * delta_time * forward;
+        forward = speed * delta_time * forward;
 
         if (GetAsyncKeyState('W') < 0) {
             const XMVECTOR newpos = XMLoadFloat3(&demo->camera.position) + forward;
@@ -514,6 +539,33 @@ void Update_Demo_State(DEMO_STATE* demo) {
             0
         );
         gr->cmdlist->DrawInstanced(renderable->mesh.num_indices, 1, 0, 0);
+    }
+
+    graphics::Set_Pipeline_State(gr, demo->mesh_debug_pso);
+    gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+    gr->cmdlist->SetGraphicsRootConstantBufferView(
+        1,
+        graphics::Get_Resource(gr, demo->const_buffer)->GetGPUVirtualAddress()
+    );
+    {
+        const auto table_base = graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->vertex_buffer_srv);
+        graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->index_buffer_srv);
+        gr->cmdlist->SetGraphicsRootDescriptorTable(2, table_base);
+    }
+
+    for (U32 i = 0; i < demo->renderables.size(); ++i) {
+        const RENDERABLE* renderable = &demo->renderables[i];
+        gr->cmdlist->SetGraphicsRoot32BitConstants(
+            0,
+            3,
+            Get_Const_Ptr<XMUINT3>({
+                renderable->mesh.index_offset,
+                renderable->mesh.vertex_offset,
+                i, // renderable_id
+            }),
+            0
+        );
+        gr->cmdlist->DrawInstanced(renderable->mesh.num_indices * 4, 1, 0, 0);
     }
 
     graphics::Set_Pipeline_State(gr, demo->display_texture_pso);
