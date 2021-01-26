@@ -7,6 +7,8 @@ namespace demo {
 
 #include "cpp_hlsl_common.h"
 
+constexpr U32 num_msaa_samples = 8;
+
 struct MESH {
     U32 index_offset;
     U32 vertex_offset;
@@ -33,12 +35,14 @@ struct DEMO_STATE {
     graphics::RESOURCE_HANDLE vertex_buffer;
     graphics::RESOURCE_HANDLE index_buffer;
     graphics::RESOURCE_HANDLE renderable_const_buffer;
+    graphics::RESOURCE_HANDLE srgb_texture;
     graphics::RESOURCE_HANDLE depth_texture;
     graphics::RESOURCE_HANDLE dynamic_texture;
     graphics::RESOURCE_HANDLE mesh_textures[4];
     D3D12_CPU_DESCRIPTOR_HANDLE vertex_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE index_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE renderable_const_buffer_srv;
+    D3D12_CPU_DESCRIPTOR_HANDLE srgb_texture_rtv;
     D3D12_CPU_DESCRIPTOR_HANDLE depth_texture_dsv;
     D3D12_CPU_DESCRIPTOR_HANDLE dynamic_texture_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE mesh_textures_base_srv;
@@ -147,8 +151,8 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             .DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT),
             .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
             .NumRenderTargets = 1,
-            .RTVFormats = { DXGI_FORMAT_R8G8B8A8_UNORM },
-            .SampleDesc = { .Count = 1, .Quality = 0 },
+            .RTVFormats = { DXGI_FORMAT_R8G8B8A8_UNORM_SRGB },
+            .SampleDesc = { .Count = num_msaa_samples, .Quality = 0 },
         };
         desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         desc.DepthStencilState.DepthEnable = FALSE;
@@ -167,9 +171,9 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             .DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT),
             .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
             .NumRenderTargets = 1,
-            .RTVFormats = { DXGI_FORMAT_R8G8B8A8_UNORM },
+            .RTVFormats = { DXGI_FORMAT_R8G8B8A8_UNORM_SRGB },
             .DSVFormat = DXGI_FORMAT_D32_FLOAT,
-            .SampleDesc = { .Count = 1, .Quality = 0 },
+            .SampleDesc = { .Count = num_msaa_samples, .Quality = 0 },
         };
         desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         demo->mesh_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
@@ -187,19 +191,16 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             .DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT),
             .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE,
             .NumRenderTargets = 1,
-            .RTVFormats = { DXGI_FORMAT_R8G8B8A8_UNORM },
+            .RTVFormats = { DXGI_FORMAT_R8G8B8A8_UNORM_SRGB },
             .DSVFormat = DXGI_FORMAT_D32_FLOAT,
-            .SampleDesc = { .Count = 1, .Quality = 0 },
+            .SampleDesc = { .Count = num_msaa_samples, .Quality = 0 },
         };
         desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         demo->mesh_debug_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
 
-    VHR(gr->d2d.context->CreateSolidColorBrush(
-        { .r = 1.0f, .g = 0.0f, .b = 0.0f, .a = 0.5f },
-        &demo->hud.brush
-    ));
-    demo->hud.brush->SetColor({ .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f });
+    VHR(gr->d2d.context->CreateSolidColorBrush({ 0.0f }, &demo->hud.brush));
+    demo->hud.brush->SetColor({ .r = 1.0f, .g = 1.0f, .b = 1.0f, .a = 1.0f });
 
     VHR(gr->d2d.factory_dwrite->CreateTextFormat(
         L"Verdana",
@@ -306,6 +307,35 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         demo->renderable_const_buffer_srv
     );
 
+    // Create srgb color texture.
+    {
+        auto desc = CD3DX12_RESOURCE_DESC::Tex2D(
+            DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+            gr->viewport_width,
+            gr->viewport_height
+        );
+        desc.MipLevels = 1;
+        desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+        desc.SampleDesc.Count = num_msaa_samples;
+        demo->srgb_texture = graphics::Create_Committed_Resource(
+            gr,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_HEAP_FLAG_NONE,
+            &desc,
+            D3D12_RESOURCE_STATE_RENDER_TARGET,
+            Get_Const_Ptr(CD3DX12_CLEAR_VALUE(desc.Format, XMVECTORF32{ 0.0f, 0.0f, 0.0f, 1.0f }))
+        );
+        demo->srgb_texture_rtv = graphics::Allocate_Cpu_Descriptors(
+            gr,
+            D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+            1
+        );
+        gr->device->CreateRenderTargetView(
+            graphics::Get_Resource(gr, demo->srgb_texture),
+            NULL,
+            demo->srgb_texture_rtv
+        );
+    }
     // Create depth texture.
     {
         auto desc = CD3DX12_RESOURCE_DESC::Tex2D(
@@ -313,7 +343,9 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             gr->viewport_width,
             gr->viewport_height
         );
+        desc.MipLevels = 1;
         desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+        desc.SampleDesc.Count = num_msaa_samples;
         demo->depth_texture = graphics::Create_Committed_Resource(
             gr,
             D3D12_HEAP_TYPE_DEFAULT,
@@ -360,7 +392,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
 
     graphics::Begin_Frame(gr);
 
-    library::Init_Gui_Context(&demo->gui, gr);
+    library::Init_Gui_Context(&demo->gui, gr, num_msaa_samples);
 
     {
         LPCWSTR names[] = {
@@ -421,6 +453,7 @@ void Deinit_Demo_State(DEMO_STATE* demo) {
     graphics::Release_Resource(gr, demo->vertex_buffer);
     graphics::Release_Resource(gr, demo->index_buffer);
     graphics::Release_Resource(gr, demo->renderable_const_buffer);
+    graphics::Release_Resource(gr, demo->srgb_texture);
     graphics::Release_Resource(gr, demo->depth_texture);
     graphics::Release_Resource(gr, demo->dynamic_texture);
     for (U32 i = 0; i < eastl::size(demo->mesh_textures); ++i) {
@@ -513,14 +546,17 @@ void Update_Demo_State(DEMO_STATE* demo) {
 
     graphics::Begin_Frame(gr);
 
-    const auto [back_buffer, back_buffer_rtv] = graphics::Get_Back_Buffer(gr);
-
-    graphics::Add_Transition_Barrier(gr, back_buffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    graphics::Add_Transition_Barrier(gr, demo->srgb_texture, D3D12_RESOURCE_STATE_RENDER_TARGET);
     graphics::Flush_Resource_Barriers(gr);
 
-    gr->cmdlist->OMSetRenderTargets(1, &back_buffer_rtv, TRUE, &demo->depth_texture_dsv);
+    gr->cmdlist->OMSetRenderTargets(1, &demo->srgb_texture_rtv, TRUE, &demo->depth_texture_dsv);
     gr->cmdlist->ClearDepthStencilView(demo->depth_texture_dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, NULL);
-    gr->cmdlist->ClearRenderTargetView(back_buffer_rtv, XMVECTORF32{ 0.2f, 0.4f, 0.8f, 1.0f }, 0, NULL);
+    gr->cmdlist->ClearRenderTargetView(
+        demo->srgb_texture_rtv,
+        XMVECTORF32{ 0.0f, 0.0f, 0.0f, 1.0f },
+        0,
+        NULL
+    );
 
     D3D12_GPU_VIRTUAL_ADDRESS glob_buffer_addr = {};
 
@@ -663,6 +699,21 @@ void Update_Demo_State(DEMO_STATE* demo) {
     }
 
     library::Draw_Gui(&demo->gui, gr);
+
+    const auto [back_buffer, back_buffer_rtv] = graphics::Get_Back_Buffer(gr);
+    graphics::Add_Transition_Barrier(gr, back_buffer, D3D12_RESOURCE_STATE_RESOLVE_DEST);
+    graphics::Add_Transition_Barrier(gr, demo->srgb_texture, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
+    graphics::Flush_Resource_Barriers(gr);
+
+    gr->cmdlist->ResolveSubresource(
+        graphics::Get_Resource(gr, back_buffer),
+        0,
+        graphics::Get_Resource(gr, demo->srgb_texture),
+        0,
+        DXGI_FORMAT_R8G8B8A8_UNORM
+    );
+    graphics::Add_Transition_Barrier(gr, back_buffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    graphics::Flush_Resource_Barriers(gr);
 
     graphics::Begin_Draw_2D(gr);
     {

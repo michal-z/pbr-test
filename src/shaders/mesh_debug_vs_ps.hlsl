@@ -35,6 +35,7 @@ void Vertex_Shader(
     out_mode = mode;
 }
 
+[RootSignature(ROOT_SIGNATURE)]
 void Pixel_Shader(
     XMFLOAT4 position_ndc : SV_Position,
     U32 mode : _Mode,

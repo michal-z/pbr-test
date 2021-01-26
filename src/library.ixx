@@ -276,8 +276,8 @@ export struct IMGUI_CONTEXT {
     D3D12_CPU_DESCRIPTOR_HANDLE font_srv;
 };
 
-export void Init_Gui_Context(IMGUI_CONTEXT* gui, graphics::CONTEXT* gr) {
-    assert(gui && gr);
+export void Init_Gui_Context(IMGUI_CONTEXT* gui, graphics::CONTEXT* gr, U32 num_msaa_samples) {
+    assert(gui && gr && num_msaa_samples > 0);
 
     ImGuiIO* io = &ImGui::GetIO();
     io->KeyMap[ImGuiKey_Tab] = VK_TAB;
@@ -341,8 +341,8 @@ export void Init_Gui_Context(IMGUI_CONTEXT* gui, graphics::CONTEXT* gr) {
         .InputLayout = { inputs, (U32)eastl::size(inputs) },
         .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
         .NumRenderTargets = 1,
-        .RTVFormats = { DXGI_FORMAT_R8G8B8A8_UNORM },
-        .SampleDesc = { .Count = 1, .Quality = 0 },
+        .RTVFormats = { DXGI_FORMAT_R8G8B8A8_UNORM_SRGB },
+        .SampleDesc = { .Count = num_msaa_samples, .Quality = 0 },
     };
     pso_desc.DepthStencilState.DepthEnable = FALSE;
     pso_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
