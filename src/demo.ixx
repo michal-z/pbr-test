@@ -543,7 +543,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
         graphics::Flush_Resource_Barriers(gr);
     }
 
-    const auto descriptor_table_base = graphics::Copy_Descriptors_To_Gpu_Heap(
+    const auto buffer_table_base = graphics::Copy_Descriptors_To_Gpu_Heap(
         gr,
         1,
         demo->vertex_buffer_srv
@@ -551,10 +551,13 @@ void Update_Demo_State(DEMO_STATE* demo) {
     graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->index_buffer_srv);
     graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->renderable_const_buffer_srv);
 
+    const auto texture_table_base = graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->ao_texture_srv);
+
     graphics::Set_Pipeline_State(gr, demo->mesh_pso);
     gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     gr->cmdlist->SetGraphicsRootConstantBufferView(1, glob_buffer_addr);
-    gr->cmdlist->SetGraphicsRootDescriptorTable(2, descriptor_table_base);
+    gr->cmdlist->SetGraphicsRootDescriptorTable(2, buffer_table_base);
+    gr->cmdlist->SetGraphicsRootDescriptorTable(3, texture_table_base);
     for (U32 i = 0; i < demo->renderables.size(); ++i) {
         const RENDERABLE* renderable = &demo->renderables[i];
         gr->cmdlist->SetGraphicsRoot32BitConstants(
@@ -574,7 +577,8 @@ void Update_Demo_State(DEMO_STATE* demo) {
         graphics::Set_Pipeline_State(gr, demo->mesh_debug_pso);
         gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
         gr->cmdlist->SetGraphicsRootConstantBufferView(1, glob_buffer_addr);
-        gr->cmdlist->SetGraphicsRootDescriptorTable(2, descriptor_table_base);
+        gr->cmdlist->SetGraphicsRootDescriptorTable(2, buffer_table_base);
+        gr->cmdlist->SetGraphicsRootDescriptorTable(3, texture_table_base);
         for (U32 i = 0; i < demo->renderables.size(); ++i) {
             const RENDERABLE* renderable = &demo->renderables[i];
             gr->cmdlist->SetGraphicsRoot32BitConstants(

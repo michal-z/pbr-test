@@ -54,5 +54,6 @@ void Pixel_Shader(
         color += n_dot_l * light_colors[i];
     }
 
-    out_color = XMFLOAT4(uv, 0.0f, 1.0f);
+    //out_color = XMFLOAT4(uv, 0.0f, 1.0f);
+    out_color = srv_ao_texture.Sample(sam_linear, uv);
 }

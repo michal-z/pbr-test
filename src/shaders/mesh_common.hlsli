@@ -5,7 +5,9 @@
 #define ROOT_SIGNATURE \
     "RootConstants(b0, num32BitConstants = 3, visibility = SHADER_VISIBILITY_VERTEX), " \
     "CBV(b1, visibility = SHADER_VISIBILITY_VERTEX), " \
-    "DescriptorTable(SRV(t0, numDescriptors = 3), visibility = SHADER_VISIBILITY_VERTEX)"
+    "DescriptorTable(SRV(t0, numDescriptors = 3), visibility = SHADER_VISIBILITY_VERTEX), " \
+    "DescriptorTable(SRV(t4, numDescriptors = 1), visibility = SHADER_VISIBILITY_PIXEL), " \
+    "StaticSampler(s0, filter = FILTER_MIN_MAG_MIP_LINEAR, visibility = SHADER_VISIBILITY_PIXEL)"
 
 struct DRAW_COMMAND {
     U32 index_offset;
@@ -19,3 +21,7 @@ ConstantBuffer<GLOBALS> cbv_glob : register(b1);
 StructuredBuffer<VERTEX> srv_vertices : register(t0);
 Buffer<U32> srv_indices : register(t1);
 StructuredBuffer<RENDERABLE_CONSTANTS> srv_const_renderables : register(t2);
+
+Texture2D<XMFLOAT4> srv_ao_texture : register(t4);
+
+SamplerState sam_linear : register(s0);
