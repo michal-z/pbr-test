@@ -26,6 +26,7 @@ void Vertex_Shader(
     out_uv = srv_vertices[vertex_index].uv;
 }
 
+[RootSignature(ROOT_SIGNATURE)]
 void Pixel_Shader(
     XMFLOAT4 position_ndc : SV_Position,
     XMFLOAT3 position : _Position,
@@ -33,27 +34,30 @@ void Pixel_Shader(
     XMFLOAT2 uv : _Uv,
     out XMFLOAT4 out_color : SV_Target0
 ) {
-    const XMFLOAT3 light_positions[4] = {
-        XMFLOAT3(50.0f, 25.0f, 0.0f),
-        XMFLOAT3(-50.0f, 25.0f, 0.0f),
-        XMFLOAT3(0.0f, 25.0f, -50.0f),
-        XMFLOAT3(0.0f, 25.0f, 50.0f),
-    };
-    const XMFLOAT3 light_colors[4] = {
-        XMFLOAT3(0.4f, 0.3f, 0.1f),
-        XMFLOAT3(0.4f, 0.3f, 0.1f),
-        XMFLOAT3(1.0f, 0.8f, 0.2f),
-        XMFLOAT3(1.0f, 0.8f, 0.2f),
-    };
+    if (cbv_glob.draw_mode == 0) {
+        const XMFLOAT3 light_positions[4] = {
+            XMFLOAT3(50.0f, 25.0f, 0.0f),
+            XMFLOAT3(-50.0f, 25.0f, 0.0f),
+            XMFLOAT3(0.0f, 25.0f, -50.0f),
+            XMFLOAT3(0.0f, 25.0f, 50.0f),
+        };
+        const XMFLOAT3 light_colors[4] = {
+            XMFLOAT3(0.4f, 0.3f, 0.1f),
+            XMFLOAT3(0.4f, 0.3f, 0.1f),
+            XMFLOAT3(1.0f, 0.8f, 0.2f),
+            XMFLOAT3(1.0f, 0.8f, 0.2f),
+        };
 
-    const XMFLOAT3 n = normalize(normal);
-    XMFLOAT3 color = 0.0f;
-    for (U32 i = 0; i < 4; ++i) {
-        const XMFLOAT3 l = normalize(light_positions[i] - position);
-        const F32 n_dot_l = saturate(dot(n, l));
-        color += n_dot_l * light_colors[i];
+        const XMFLOAT3 n = normalize(normal);
+        XMFLOAT3 color = 0.0f;
+        for (U32 i = 0; i < 4; ++i) {
+            const XMFLOAT3 l = normalize(light_positions[i] - position);
+            const F32 n_dot_l = saturate(dot(n, l));
+            color += n_dot_l * light_colors[i];
+        }
+
+        out_color = XMFLOAT4(uv, 0.0f, 1.0f);
+    } else {
+        out_color = srv_mesh_textures[cbv_glob.draw_mode - 1].Sample(sam_linear, uv);
     }
-
-    //out_color = XMFLOAT4(uv, 0.0f, 1.0f);
-    out_color = srv_ao_texture.Sample(sam_linear, uv);
 }

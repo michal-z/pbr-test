@@ -9,6 +9,7 @@ struct VERTEX {
 
 struct GLOBALS {
     XMFLOAT4X4 world_to_clip;
+    U32 draw_mode;
 };
 
 struct RENDERABLE_CONSTANTS {

@@ -24,8 +24,9 @@ struct DEMO_STATE {
     library::IMGUI_CONTEXT gui;
     VECTOR<MESH> meshes;
     VECTOR<RENDERABLE> renderables;
-    bool enable_debug_draw;
+    bool enable_draw_vectors;
     bool enable_dynamic_texture;
+    S32 draw_mode;
     graphics::PIPELINE_HANDLE display_texture_pso;
     graphics::PIPELINE_HANDLE mesh_pso;
     graphics::PIPELINE_HANDLE mesh_debug_pso;
@@ -34,13 +35,13 @@ struct DEMO_STATE {
     graphics::RESOURCE_HANDLE renderable_const_buffer;
     graphics::RESOURCE_HANDLE depth_texture;
     graphics::RESOURCE_HANDLE dynamic_texture;
-    graphics::RESOURCE_HANDLE ao_texture;
+    graphics::RESOURCE_HANDLE mesh_textures[4];
     D3D12_CPU_DESCRIPTOR_HANDLE vertex_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE index_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE renderable_const_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE depth_texture_dsv;
     D3D12_CPU_DESCRIPTOR_HANDLE dynamic_texture_srv;
-    D3D12_CPU_DESCRIPTOR_HANDLE ao_texture_srv;
+    D3D12_CPU_DESCRIPTOR_HANDLE mesh_textures_base_srv;
     struct {
         ID2D1_SOLID_COLOR_BRUSH* brush;
         IDWRITE_TEXT_FORMAT* text_format;
@@ -84,6 +85,21 @@ void Add_Mesh(
     });
     all_vertices->insert(all_vertices->end(), vertices.begin(), vertices.end());
     all_indices->insert(all_indices->end(), indices.begin(), indices.end());
+}
+
+void Create_And_Upload_Texture(
+    LPCWSTR filename,
+    graphics::CONTEXT* gr,
+    library::MIPMAP_GENERATOR* mipgen,
+    graphics::RESOURCE_HANDLE* texture,
+    D3D12_CPU_DESCRIPTOR_HANDLE* texture_srv
+) {
+    assert(filename && gr && mipgen && texture && texture_srv);
+    const auto [tex, srv] = graphics::Create_Texture_From_File(gr, filename);
+    library::Generate_Mipmaps(mipgen, gr, tex);
+    graphics::Add_Transition_Barrier(gr, tex, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    *texture = tex;
+    *texture_srv = srv;
 }
 
 template<typename T> void Upload_To_Gpu(
@@ -347,18 +363,25 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     library::Init_Gui_Context(&demo->gui, gr);
 
     {
-        const auto [texture, srv] = graphics::Create_Texture_From_File(
-            gr,
-            L"data/SciFiHelmet/SciFiHelmet_AmbientOcclusion.png"
-        );
-        demo->ao_texture = texture;
-        demo->ao_texture_srv = srv;
-        library::Generate_Mipmaps(&mipgen, gr, texture);
-        graphics::Add_Transition_Barrier(
-            gr,
-            demo->ao_texture,
-            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
-        );
+        LPCWSTR names[] = {
+            L"data/SciFiHelmet/SciFiHelmet_AmbientOcclusion.png",
+            L"data/SciFiHelmet/SciFiHelmet_BaseColor.png",
+            L"data/SciFiHelmet/SciFiHelmet_MetallicRoughness.png",
+            L"data/SciFiHelmet/SciFiHelmet_Normal.png",
+        };
+        for (U32 i = 0; i < eastl::size(names); ++i) {
+            D3D12_CPU_DESCRIPTOR_HANDLE handle;
+            Create_And_Upload_Texture(
+                names[i],
+                gr,
+                &mipgen,
+                &demo->mesh_textures[i],
+                &handle
+            );
+            if (i == 0) {
+                demo->mesh_textures_base_srv = handle;
+            }
+        }
     }
 
     // Upload vertices.
@@ -400,7 +423,9 @@ void Deinit_Demo_State(DEMO_STATE* demo) {
     graphics::Release_Resource(gr, demo->renderable_const_buffer);
     graphics::Release_Resource(gr, demo->depth_texture);
     graphics::Release_Resource(gr, demo->dynamic_texture);
-    graphics::Release_Resource(gr, demo->ao_texture);
+    for (U32 i = 0; i < eastl::size(demo->mesh_textures); ++i) {
+        graphics::Release_Resource(gr, demo->mesh_textures[i]);
+    }
     graphics::Release_Pipeline(gr, demo->display_texture_pso);
     graphics::Release_Pipeline(gr, demo->mesh_pso);
     graphics::Release_Pipeline(gr, demo->mesh_debug_pso);
@@ -423,8 +448,17 @@ void Update_Demo_State(DEMO_STATE* demo) {
         NULL,
         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings
     );
-    ImGui::Checkbox("Enable debug draw", &demo->enable_debug_draw);
-    ImGui::Checkbox("Enable dynamic texture", &demo->enable_dynamic_texture);
+    ImGui::Checkbox("Draw tangent, normal and bi-normal vectors", &demo->enable_draw_vectors);
+    ImGui::Checkbox("Draw dynamic texture", &demo->enable_dynamic_texture);
+    ImGui::Separator();
+    ImGui::Text("Draw mode:");
+    ImGui::Indent();
+    ImGui::RadioButton("Draw PBR effect", &demo->draw_mode, 0);
+    ImGui::RadioButton("Draw Ambient Occlusion texture", &demo->draw_mode, 1);
+    ImGui::RadioButton("Draw Base Color texture", &demo->draw_mode, 2);
+    ImGui::RadioButton("Draw Metallic Roughness texture", &demo->draw_mode, 3);
+    ImGui::RadioButton("Draw Normal texture", &demo->draw_mode, 4);
+    ImGui::Unindent();
     ImGui::End();
 
     // Handle camera rotation with mouse.
@@ -506,8 +540,9 @@ void Update_Demo_State(DEMO_STATE* demo) {
             0.1f,
             100.0f
         );
-        GLOBALS* constants = (GLOBALS*)cpu_addr;
-        XMStoreFloat4x4(&constants->world_to_clip, XMMatrixTranspose(world_to_clip));
+        GLOBALS* globals = (GLOBALS*)cpu_addr;
+        XMStoreFloat4x4(&globals->world_to_clip, XMMatrixTranspose(world_to_clip));
+        globals->draw_mode = demo->draw_mode;
     }
     // Upload 'RENDERABLE_CONSTANTS' data.
     {
@@ -551,7 +586,11 @@ void Update_Demo_State(DEMO_STATE* demo) {
     graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->index_buffer_srv);
     graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->renderable_const_buffer_srv);
 
-    const auto texture_table_base = graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->ao_texture_srv);
+    const auto texture_table_base = graphics::Copy_Descriptors_To_Gpu_Heap(
+        gr,
+        (U32)eastl::size(demo->mesh_textures),
+        demo->mesh_textures_base_srv
+    );
 
     graphics::Set_Pipeline_State(gr, demo->mesh_pso);
     gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -573,7 +612,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
         gr->cmdlist->DrawInstanced(renderable->mesh.num_indices, 1, 0, 0);
     }
 
-    if (demo->enable_debug_draw) {
+    if (demo->enable_draw_vectors) {
         graphics::Set_Pipeline_State(gr, demo->mesh_debug_pso);
         gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
         gr->cmdlist->SetGraphicsRootConstantBufferView(1, glob_buffer_addr);
