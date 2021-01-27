@@ -186,7 +186,7 @@ void Create_Env_Cube_Texture(
             (XMFLOAT4X4A*)cpu_addr,
             XMMatrixTranspose(object_to_view[cube_face_idx] * view_to_clip)
         );
-        gr->cmdlist->SetGraphicsRootConstantBufferView(2, gpu_addr);
+        gr->cmdlist->SetGraphicsRootConstantBufferView(3, gpu_addr);
         gr->cmdlist->DrawInstanced(36, 1, 0, 0); // 36 indices for cube mesh
     }
     graphics::Add_Transition_Barrier(gr, *env_texture, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -582,7 +582,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         gr->cmdlist->SetGraphicsRootDescriptorTable(1, table_base);
     }
     gr->cmdlist->SetGraphicsRootDescriptorTable(
-        3,
+        2,
         graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, equirectangular_texture_srv)
     );
     Create_Env_Cube_Texture(

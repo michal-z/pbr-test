@@ -1050,7 +1050,7 @@ export TUPLE<U8*, D3D12_GPU_VIRTUAL_ADDRESS> Allocate_Upload_Memory(
     if (cpu_addr == NULL && gpu_addr == 0) {
         OutputDebugStringA(
             "[graphics] Upload memory heap exhausted - draining a GPU..."
-            "(command list state has changed!!!)\n"
+            "(command list state has been changed!!!)\n"
         );
         Flush_Gpu_Commands(gr);
         Finish_Gpu_Commands(gr);

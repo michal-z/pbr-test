@@ -4,8 +4,8 @@
 #define ROOT_SIGNATURE \
     "RootConstants(b0, num32BitConstants = 3, visibility = SHADER_VISIBILITY_VERTEX), " \
     "DescriptorTable(SRV(t0, numDescriptors = 2), visibility = SHADER_VISIBILITY_VERTEX), " \
-    "CBV(b1, visibility = SHADER_VISIBILITY_VERTEX), " \
     "DescriptorTable(SRV(t2), visibility = SHADER_VISIBILITY_PIXEL), " \
+    "CBV(b1, visibility = SHADER_VISIBILITY_VERTEX), " \
     "StaticSampler(" \
     "   s0, " \
     "   filter = FILTER_MIN_MAG_LINEAR_MIP_POINT, " \
@@ -46,7 +46,7 @@ void Vertex_Shader(
     const XMFLOAT3 position = srv_vertices[vertex_index].position;
 
     out_position_ndc = mul(XMFLOAT4(position, 1.0f), cbv_glob.object_to_clip);
-    out_position = position; // object space
+    out_position = position; // Position in object space.
 }
 
 [RootSignature(ROOT_SIGNATURE)]
