@@ -39,6 +39,7 @@ struct DEMO_STATE {
     graphics::RESOURCE_HANDLE depth_texture;
     graphics::RESOURCE_HANDLE dynamic_texture;
     graphics::RESOURCE_HANDLE mesh_textures[4];
+    graphics::RESOURCE_HANDLE env_texture;
     D3D12_CPU_DESCRIPTOR_HANDLE vertex_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE index_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE renderable_const_buffer_srv;
@@ -46,6 +47,7 @@ struct DEMO_STATE {
     D3D12_CPU_DESCRIPTOR_HANDLE depth_texture_dsv;
     D3D12_CPU_DESCRIPTOR_HANDLE dynamic_texture_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE mesh_textures_base_srv;
+    D3D12_CPU_DESCRIPTOR_HANDLE env_texture_srv;
     struct {
         ID2D1_SOLID_COLOR_BRUSH* brush;
         IDWRITE_TEXT_FORMAT* text_format;
@@ -104,6 +106,91 @@ void Create_And_Upload_Texture(
     graphics::Add_Transition_Barrier(gr, tex, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     *texture = tex;
     *texture_srv = srv;
+}
+
+void Create_Env_Cube_Texture(
+    graphics::CONTEXT* gr,
+    graphics::RESOURCE_HANDLE* env_texture,
+    D3D12_CPU_DESCRIPTOR_HANDLE* env_texture_srv
+) {
+    constexpr U32 cube_resolution = 512;
+    *env_texture = graphics::Create_Committed_Resource(
+        gr,
+        D3D12_HEAP_TYPE_DEFAULT,
+        D3D12_HEAP_FLAG_NONE,
+        Get_Const_Ptr<D3D12_RESOURCE_DESC>({
+            .Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+            .Width = cube_resolution,
+            .Height = cube_resolution,
+            .DepthOrArraySize = 6,
+            .Format = DXGI_FORMAT_R16G16B16A16_FLOAT,
+            .SampleDesc = { .Count = 1 },
+            .Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET
+        }),
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        NULL
+    );
+    *env_texture_srv = graphics::Allocate_Cpu_Descriptors(gr, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1);
+    gr->device->CreateShaderResourceView(
+        graphics::Get_Resource(gr, *env_texture),
+        Get_Const_Ptr<D3D12_SHADER_RESOURCE_VIEW_DESC>({
+            .ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE,
+            .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+            .TextureCube = { .MipLevels = (U32)-1 },
+        }),
+        *env_texture_srv
+    );
+
+    gr->cmdlist->RSSetViewports(
+        1,
+        Get_Const_Ptr(CD3DX12_VIEWPORT(0.0f, 0.0f, (float)cube_resolution, (float)cube_resolution))
+    );
+    gr->cmdlist->RSSetScissorRects(
+        1,
+        Get_Const_Ptr(CD3DX12_RECT(0, 0, cube_resolution, cube_resolution))
+    );
+    gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    const auto zero = XMVectorZero();
+    const XMMATRIX object_to_view[6] = {
+        XMMatrixLookToLH(zero, XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)),
+        XMMatrixLookToLH(zero, XMVectorSet(-1.0f, 0.0f, 0.0f, 0.0f), XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)),
+        XMMatrixLookToLH(zero, XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f)),
+        XMMatrixLookToLH(zero, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)),
+        XMMatrixLookToLH(zero, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)),
+        XMMatrixLookToLH(zero, XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f), XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)),
+    };
+    const XMMATRIX view_to_clip = XMMatrixPerspectiveFovLH(XM_PIDIV2, 1.0f, 0.1f, 10.0f);
+
+    for (U32 cube_face_idx = 0; cube_face_idx < 6; ++cube_face_idx) {
+        const D3D12_CPU_DESCRIPTOR_HANDLE cube_face_rtv = graphics::Allocate_Cpu_Descriptors(
+            gr,
+            D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+            1
+        );
+        gr->device->CreateRenderTargetView(
+            graphics::Get_Resource(gr, *env_texture),
+            Get_Const_Ptr<D3D12_RENDER_TARGET_VIEW_DESC>({
+                .ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DARRAY,
+                .Texture2DArray = { .FirstArraySlice = cube_face_idx, .ArraySize = 1 },
+            }),
+            cube_face_rtv
+        );
+
+        graphics::Add_Transition_Barrier(gr, *env_texture, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        graphics::Flush_Resource_Barriers(gr);
+        gr->cmdlist->OMSetRenderTargets(1, &cube_face_rtv, TRUE, NULL);
+
+        const auto [cpu_addr, gpu_addr] = graphics::Allocate_Upload_Memory(gr, sizeof XMFLOAT4X4A);
+        XMStoreFloat4x4A(
+            (XMFLOAT4X4A*)cpu_addr,
+            XMMatrixTranspose(object_to_view[cube_face_idx] * view_to_clip)
+        );
+        gr->cmdlist->SetGraphicsRootConstantBufferView(2, gpu_addr);
+        gr->cmdlist->DrawInstanced(36, 1, 0, 0); // 36 indices for cube mesh
+    }
+    graphics::Add_Transition_Barrier(gr, *env_texture, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    graphics::Flush_Resource_Barriers(gr);
 }
 
 template<typename T> void Upload_To_Gpu(
@@ -198,6 +285,26 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         demo->mesh_debug_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
+    graphics::PIPELINE_HANDLE equirect_to_cube_pso = {};
+    {
+        const VECTOR<U8> vs = library::Load_File("data/shaders/equirectangular_to_cube_vs_ps.vs.cso");
+        const VECTOR<U8> ps = library::Load_File("data/shaders/equirectangular_to_cube_vs_ps.ps.cso");
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
+            .VS = { vs.data(), vs.size() },
+            .PS = { ps.data(), ps.size() },
+            .BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT),
+            .SampleMask = UINT32_MAX,
+            .RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT),
+            .DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT),
+            .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
+            .NumRenderTargets = 1,
+            .RTVFormats = { DXGI_FORMAT_R16G16B16A16_FLOAT },
+            .SampleDesc = { .Count = 1 },
+        };
+        desc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+        desc.DepthStencilState.DepthEnable = FALSE,
+        equirect_to_cube_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
+    }
 
     VHR(gr->d2d.context->CreateSolidColorBrush({ 0.0f }, &demo->hud.brush));
     demo->hud.brush->SetColor({ .r = 1.0f, .g = 1.0f, .b = 1.0f, .a = 1.0f });
@@ -220,6 +327,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     {
         const LPCSTR mesh_paths[] = {
             "data/SciFiHelmet/SciFiHelmet.gltf",
+            "data/cube.gltf",
         };
         for (U32 i = 0; i < eastl::size(mesh_paths); ++i) {
             Add_Mesh(mesh_paths[i], &demo->meshes, &all_vertices, &all_indices);
@@ -273,7 +381,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             .Format = DXGI_FORMAT_R32_UINT,
             .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
             .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
-            .Buffer = { .NumElements = (U32)all_indices.size() }
+            .Buffer = { .NumElements = (U32)all_indices.size() },
         }),
         demo->index_buffer_srv
     );
@@ -422,10 +530,73 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     // Upload indices.
     Upload_To_Gpu(gr, demo->index_buffer, &all_indices, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
+    graphics::RESOURCE_HANDLE equirectangular_texture = {};
+    D3D12_CPU_DESCRIPTOR_HANDLE equirectangular_texture_srv = {};
+    {
+        S32 width, height;
+        stbi_set_flip_vertically_on_load(1);
+        void* image_data = stbi_loadf("data/Newport_Loft.hdr", &width, &height, NULL, 3);
+
+        equirectangular_texture = graphics::Create_Committed_Resource(
+            gr,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_HEAP_FLAG_NONE,
+            Get_Const_Ptr(CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32B32_FLOAT, width, height)),
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            NULL
+        );
+        equirectangular_texture_srv = graphics::Allocate_Cpu_Descriptors(
+            gr,
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+            1
+        );
+        gr->device->CreateShaderResourceView(
+            graphics::Get_Resource(gr, equirectangular_texture),
+            NULL,
+            equirectangular_texture_srv
+        );
+        graphics::Update_Tex2D_Subresource(
+            gr,
+            equirectangular_texture,
+            0,
+            image_data,
+            width * sizeof XMFLOAT3
+        );
+        stbi_image_free(image_data);
+
+        graphics::Add_Transition_Barrier(
+            gr,
+            equirectangular_texture,
+            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+        );
+    }
+    graphics::Flush_Resource_Barriers(gr);
+
+    graphics::Set_Pipeline_State(gr, equirect_to_cube_pso);
+    gr->cmdlist->SetGraphicsRoot32BitConstant(0, demo->meshes[1].index_offset, 0);
+    gr->cmdlist->SetGraphicsRoot32BitConstant(0, demo->meshes[1].vertex_offset, 1);
+    gr->cmdlist->SetGraphicsRoot32BitConstant(0, 0, 2);
+    {
+        const auto table_base = graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->vertex_buffer_srv);
+        graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->index_buffer_srv);
+        gr->cmdlist->SetGraphicsRootDescriptorTable(1, table_base);
+    }
+    gr->cmdlist->SetGraphicsRootDescriptorTable(
+        3,
+        graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, equirectangular_texture_srv)
+    );
+    Create_Env_Cube_Texture(
+        gr,
+        &demo->env_texture,
+        &demo->env_texture_srv
+    );
+
     graphics::Flush_Gpu_Commands(gr);
     graphics::Finish_Gpu_Commands(gr);
 
     library::Deinit_Mipmap_Generator(&mipgen, gr);
+    graphics::Release_Pipeline(gr, equirect_to_cube_pso);
+    graphics::Release_Resource(gr, equirectangular_texture);
 
     library::Init_Frame_Stats(&demo->frame_stats);
 
@@ -456,6 +627,7 @@ void Deinit_Demo_State(DEMO_STATE* demo) {
     graphics::Release_Resource(gr, demo->srgb_texture);
     graphics::Release_Resource(gr, demo->depth_texture);
     graphics::Release_Resource(gr, demo->dynamic_texture);
+    graphics::Release_Resource(gr, demo->env_texture);
     for (U32 i = 0; i < eastl::size(demo->mesh_textures); ++i) {
         graphics::Release_Resource(gr, demo->mesh_textures[i]);
     }

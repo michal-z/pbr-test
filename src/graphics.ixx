@@ -1048,8 +1048,10 @@ export TUPLE<U8*, D3D12_GPU_VIRTUAL_ADDRESS> Allocate_Upload_Memory(
     auto [cpu_addr, gpu_addr] = Allocate_Gpu_Memory(&gr->upload_heaps[gr->frame_index], mem_size);
 
     if (cpu_addr == NULL && gpu_addr == 0) {
-        OutputDebugStringA("[graphics] Upload memory heap exhausted - draining a GPU...\n");
-
+        OutputDebugStringA(
+            "[graphics] Upload memory heap exhausted - draining a GPU..."
+            "(command list state has changed!!!)\n"
+        );
         Flush_Gpu_Commands(gr);
         Finish_Gpu_Commands(gr);
         Begin_Frame(gr);
@@ -1253,6 +1255,8 @@ export void Update_Tex2D_Subresource(
             layout.Footprint.Width * Get_Bytes_Per_Pixel(resource->desc.Format)
         );
     }
+    Add_Transition_Barrier(gr, texture, D3D12_RESOURCE_STATE_COPY_DEST);
+    Flush_Resource_Barriers(gr);
     gr->cmdlist->CopyTextureRegion(
         Get_Const_Ptr<D3D12_TEXTURE_COPY_LOCATION>({
             .pResource = graphics::Get_Resource(gr, texture),

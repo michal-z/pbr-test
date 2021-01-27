@@ -54,6 +54,7 @@
     <ClCompile Include="..\src\external\imgui\imgui_tables.cpp">
       <Filter>external\imgui</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\external\stb_image.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="external">
@@ -96,6 +97,7 @@
       <Filter>external\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\src\cpp_hlsl_common.h" />
+    <ClInclude Include="..\src\external\stb_image.h" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="EASTL.natvis" />

@@ -7,6 +7,12 @@ struct VERTEX {
     XMFLOAT2 uv;
 };
 
+struct DRAW_COMMAND {
+    U32 index_offset;
+    U32 vertex_offset;
+    U32 renderable_id;
+};
+
 struct GLOBALS {
     XMFLOAT4X4 world_to_clip;
     U32 draw_mode;

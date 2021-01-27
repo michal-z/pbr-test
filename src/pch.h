@@ -32,6 +32,7 @@
 #include "EASTL/tuple.h"
 
 #include "cgltf.h"
+#include "stb_image.h"
 #include "imgui/imgui.h"
 #include "DirectXMath/DirectXMath.h"
 #include "DirectXMath/DirectXPackedVector.h"
