@@ -8,7 +8,8 @@ namespace demo {
 #include "cpp_hlsl_common.h"
 
 constexpr U32 num_msaa_samples = 8;
-constexpr U32 env_cube_texture_resolution = 512;
+constexpr U32 env_texture_resolution = 512;
+constexpr U32 irradiance_texture_resolution = 64;
 
 struct MESH {
     U32 index_offset;
@@ -112,7 +113,7 @@ void Create_And_Upload_Texture(
     *texture_srv = srv;
 }
 
-void Render_To_Cube_Texture(
+void Draw_To_Cube_Texture(
     graphics::CONTEXT* gr,
     graphics::RESOURCE_HANDLE texture,
     U32 texture_resolution
@@ -479,8 +480,8 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         D3D12_HEAP_FLAG_NONE,
         Get_Const_Ptr<D3D12_RESOURCE_DESC>({
             .Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-            .Width = env_cube_texture_resolution,
-            .Height = env_cube_texture_resolution,
+            .Width = env_texture_resolution,
+            .Height = env_texture_resolution,
             .DepthOrArraySize = 6,
             .Format = DXGI_FORMAT_R16G16B16A16_FLOAT,
             .SampleDesc = { .Count = 1 },
@@ -502,6 +503,37 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             .TextureCube = { .MipLevels = (U32)-1 },
         }),
         demo->env_texture_srv
+    );
+    // Create irradiance cube texture.
+    demo->irradiance_texture = graphics::Create_Committed_Resource(
+        gr,
+        D3D12_HEAP_TYPE_DEFAULT,
+        D3D12_HEAP_FLAG_NONE,
+        Get_Const_Ptr<D3D12_RESOURCE_DESC>({
+            .Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+            .Width = irradiance_texture_resolution,
+            .Height = irradiance_texture_resolution,
+            .DepthOrArraySize = 6,
+            .Format = DXGI_FORMAT_R16G16B16A16_FLOAT,
+            .SampleDesc = { .Count = 1 },
+            .Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET
+        }),
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        NULL
+    );
+    demo->irradiance_texture_srv = graphics::Allocate_Cpu_Descriptors(
+        gr,
+        D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+        1
+    );
+    gr->device->CreateShaderResourceView(
+        graphics::Get_Resource(gr, demo->irradiance_texture),
+        Get_Const_Ptr<D3D12_SHADER_RESOURCE_VIEW_DESC>({
+            .ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE,
+            .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+            .TextureCube = { .MipLevels = (U32)-1 },
+        }),
+        demo->irradiance_texture_srv
     );
 
     // Create temporary pipelines for generating cube textures content (env., irradiance, etc.).
@@ -630,10 +662,28 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         2,
         graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, equirectangular_texture_srv)
     );
-    Render_To_Cube_Texture(gr, demo->env_texture, env_cube_texture_resolution);
-    library::Generate_Mipmaps(&mipgen_rgba16f, gr, demo->env_texture);
+    Draw_To_Cube_Texture(gr, demo->env_texture, env_texture_resolution);
 
     // Generate irradiance texture map.
+    graphics::Set_Pipeline_State(gr, generate_irradiance_texture_pso);
+    {
+        const MESH cube = demo->meshes[1];
+        gr->cmdlist->SetGraphicsRoot32BitConstant(0, cube.index_offset, 0);
+        gr->cmdlist->SetGraphicsRoot32BitConstant(0, cube.vertex_offset, 1);
+        gr->cmdlist->SetGraphicsRoot32BitConstant(0, 0, 2); // Set 'renderable_id' to 0.
+
+        const auto base = graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->vertex_buffer_srv);
+        graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->index_buffer_srv);
+        gr->cmdlist->SetGraphicsRootDescriptorTable(1, base);
+    }
+    gr->cmdlist->SetGraphicsRootDescriptorTable(
+        2,
+        graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->env_texture_srv)
+    );
+    Draw_To_Cube_Texture(gr, demo->irradiance_texture, irradiance_texture_resolution);
+
+    library::Generate_Mipmaps(&mipgen_rgba16f, gr, demo->env_texture);
+    library::Generate_Mipmaps(&mipgen_rgba16f, gr, demo->irradiance_texture);
 
     // Flush commands and wait for GPU to complete them.
     graphics::Flush_Gpu_Commands(gr);
@@ -669,6 +719,7 @@ void Deinit_Demo_State(DEMO_STATE* demo) {
     graphics::Release_Resource(gr, demo->depth_texture);
     graphics::Release_Resource(gr, demo->dynamic_texture);
     graphics::Release_Resource(gr, demo->env_texture);
+    graphics::Release_Resource(gr, demo->irradiance_texture);
     for (U32 i = 0; i < eastl::size(demo->mesh_textures); ++i) {
         graphics::Release_Resource(gr, demo->mesh_textures[i]);
     }
@@ -886,7 +937,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
         }
     }
 
-    // Draw env cube texture.
+    // Draw env. cube texture.
     {
         const MESH cube = demo->meshes[1];
         graphics::Set_Pipeline_State(gr, demo->sample_env_texture_pso);

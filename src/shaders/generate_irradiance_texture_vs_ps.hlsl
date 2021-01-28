@@ -13,6 +13,7 @@
     "   addressU = TEXTURE_ADDRESS_BORDER, " \
     "   addressV = TEXTURE_ADDRESS_BORDER" \
     ")"
+
 struct _GLOBALS {
     XMFLOAT4X4 object_to_clip;
 };
