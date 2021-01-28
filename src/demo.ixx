@@ -498,8 +498,10 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         );
     }
 
-    library::MIPMAP_GENERATOR mipgen = {};
-    library::Init_Mipmap_Generator(&mipgen, gr, DXGI_FORMAT_R8G8B8A8_UNORM);
+    library::MIPMAP_GENERATOR mipgen_rgba8 = {};
+    library::MIPMAP_GENERATOR mipgen_rgba16f = {};
+    library::Init_Mipmap_Generator(&mipgen_rgba8, gr, DXGI_FORMAT_R8G8B8A8_UNORM);
+    library::Init_Mipmap_Generator(&mipgen_rgba16f, gr, DXGI_FORMAT_R16G16B16A16_FLOAT);
 
     graphics::Begin_Frame(gr);
 
@@ -517,7 +519,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             Create_And_Upload_Texture(
                 names[i],
                 gr,
-                &mipgen,
+                &mipgen_rgba8,
                 &demo->mesh_textures[i],
                 &handle
             );
@@ -597,10 +599,12 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     }
 
     graphics::Set_Pipeline_State(gr, equirect_to_cube_pso);
-    gr->cmdlist->SetGraphicsRoot32BitConstant(0, demo->meshes[1].index_offset, 0);
-    gr->cmdlist->SetGraphicsRoot32BitConstant(0, demo->meshes[1].vertex_offset, 1);
-    gr->cmdlist->SetGraphicsRoot32BitConstant(0, 0, 2);
     {
+        const MESH cube = demo->meshes[1];
+        gr->cmdlist->SetGraphicsRoot32BitConstant(0, cube.index_offset, 0);
+        gr->cmdlist->SetGraphicsRoot32BitConstant(0, cube.vertex_offset, 1);
+        gr->cmdlist->SetGraphicsRoot32BitConstant(0, 0, 2); // Set 'renderable_id' to 0.
+
         const auto base = graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->vertex_buffer_srv);
         graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->index_buffer_srv);
         gr->cmdlist->SetGraphicsRootDescriptorTable(1, base);
@@ -614,11 +618,13 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         &demo->env_texture,
         &demo->env_texture_srv
     );
+    library::Generate_Mipmaps(&mipgen_rgba16f, gr, demo->env_texture);
 
     graphics::Flush_Gpu_Commands(gr);
     graphics::Finish_Gpu_Commands(gr);
 
-    library::Deinit_Mipmap_Generator(&mipgen, gr);
+    library::Deinit_Mipmap_Generator(&mipgen_rgba8, gr);
+    library::Deinit_Mipmap_Generator(&mipgen_rgba16f, gr);
     graphics::Release_Pipeline(gr, equirect_to_cube_pso);
     graphics::Release_Resource(gr, equirectangular_texture);
 
@@ -876,8 +882,9 @@ void Update_Demo_State(DEMO_STATE* demo) {
         gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         gr->cmdlist->SetGraphicsRoot32BitConstant(0, cube.index_offset, 0);
         gr->cmdlist->SetGraphicsRoot32BitConstant(0, cube.vertex_offset, 1);
-        gr->cmdlist->SetGraphicsRoot32BitConstant(0, 0, 2);
+        gr->cmdlist->SetGraphicsRoot32BitConstant(0, 0, 2); // Set 'renderable_id' to 0.
         {
+            // Bind vertex and index buffers.
             const auto base = graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->vertex_buffer_srv);
             graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->index_buffer_srv);
             gr->cmdlist->SetGraphicsRootDescriptorTable(1, base);
@@ -893,7 +900,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
         const auto [cpu_addr, gpu_addr] = graphics::Allocate_Upload_Memory(gr, sizeof XMFLOAT4X4A);
         XMStoreFloat4x4A((XMFLOAT4X4A*)cpu_addr, XMMatrixTranspose(object_to_clip));
         gr->cmdlist->SetGraphicsRootConstantBufferView(3, gpu_addr);
-        gr->cmdlist->DrawInstanced(36, 1, 0, 0); // 36 indices for cube mesh
+        gr->cmdlist->DrawInstanced(cube.num_indices, 1, 0, 0);
     }
 
     if (demo->enable_dynamic_texture) {

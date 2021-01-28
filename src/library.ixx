@@ -633,11 +633,9 @@ export void Generate_Mipmaps(
             gr->cmdlist->SetComputeRoot32BitConstant(0, current_src_mip_level, 0);
             gr->cmdlist->SetComputeRoot32BitConstant(0, dispatch_num_mips, 1);
             gr->cmdlist->SetComputeRootDescriptorTable(1, table_base);
-            gr->cmdlist->Dispatch(
-                (U32)(texture_desc.Width >> (3 + current_src_mip_level)),
-                texture_desc.Height >> (3 + current_src_mip_level),
-                1
-            );
+            const U32 num_groups_x = XMMax((U32)texture_desc.Width >> (3u + current_src_mip_level), 1u);
+            const U32 num_groups_y = XMMax(texture_desc.Height >> (3u + current_src_mip_level), 1u);
+            gr->cmdlist->Dispatch(num_groups_x, num_groups_y, 1);
 
             for (U32 i = 0; i < eastl::size(mipgen->scratch_textures); ++i) {
                 graphics::Add_Transition_Barrier(
@@ -675,6 +673,8 @@ export void Generate_Mipmaps(
             current_src_mip_level += dispatch_num_mips;
         }
     }
+    graphics::Add_Transition_Barrier(gr, texture, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    graphics::Flush_Resource_Barriers(gr);
 }
 
 } // namespace library
