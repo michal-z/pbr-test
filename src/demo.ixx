@@ -144,7 +144,7 @@ void Create_Env_Cube_Texture(
 
     gr->cmdlist->RSSetViewports(
         1,
-        Get_Const_Ptr(CD3DX12_VIEWPORT(0.0f, 0.0f, (float)cube_resolution, (float)cube_resolution))
+        Get_Const_Ptr(CD3DX12_VIEWPORT(0.0f, 0.0f, (F32)cube_resolution, (F32)cube_resolution))
     );
     gr->cmdlist->RSSetScissorRects(
         1,
@@ -262,7 +262,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             .DSVFormat = DXGI_FORMAT_D32_FLOAT,
             .SampleDesc = { .Count = num_msaa_samples, .Quality = 0 },
         };
-        desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+        desc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
 		desc.RasterizerState.MultisampleEnable = num_msaa_samples > 1 ? TRUE : FALSE;
         demo->mesh_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
