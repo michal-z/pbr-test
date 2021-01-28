@@ -8,6 +8,7 @@ namespace demo {
 #include "cpp_hlsl_common.h"
 
 constexpr U32 num_msaa_samples = 8;
+constexpr U32 env_cube_texture_resolution = 512;
 
 struct MESH {
     U32 index_offset;
@@ -32,7 +33,7 @@ struct DEMO_STATE {
     graphics::PIPELINE_HANDLE display_texture_pso;
     graphics::PIPELINE_HANDLE mesh_pso;
     graphics::PIPELINE_HANDLE mesh_debug_pso;
-    graphics::PIPELINE_HANDLE sample_env_pso;
+    graphics::PIPELINE_HANDLE sample_env_texture_pso;
     graphics::RESOURCE_HANDLE vertex_buffer;
     graphics::RESOURCE_HANDLE index_buffer;
     graphics::RESOURCE_HANDLE renderable_const_buffer;
@@ -41,6 +42,7 @@ struct DEMO_STATE {
     graphics::RESOURCE_HANDLE dynamic_texture;
     graphics::RESOURCE_HANDLE mesh_textures[4];
     graphics::RESOURCE_HANDLE env_texture;
+    graphics::RESOURCE_HANDLE irradiance_texture;
     D3D12_CPU_DESCRIPTOR_HANDLE vertex_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE index_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE renderable_const_buffer_srv;
@@ -49,6 +51,7 @@ struct DEMO_STATE {
     D3D12_CPU_DESCRIPTOR_HANDLE dynamic_texture_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE mesh_textures_base_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE env_texture_srv;
+    D3D12_CPU_DESCRIPTOR_HANDLE irradiance_texture_srv;
     struct {
         ID2D1_SOLID_COLOR_BRUSH* brush;
         IDWRITE_TEXT_FORMAT* text_format;
@@ -109,46 +112,18 @@ void Create_And_Upload_Texture(
     *texture_srv = srv;
 }
 
-void Create_Env_Cube_Texture(
+void Render_To_Cube_Texture(
     graphics::CONTEXT* gr,
-    graphics::RESOURCE_HANDLE* env_texture,
-    D3D12_CPU_DESCRIPTOR_HANDLE* env_texture_srv
+    graphics::RESOURCE_HANDLE texture,
+    U32 texture_resolution
 ) {
-    constexpr U32 cube_resolution = 512;
-    *env_texture = graphics::Create_Committed_Resource(
-        gr,
-        D3D12_HEAP_TYPE_DEFAULT,
-        D3D12_HEAP_FLAG_NONE,
-        Get_Const_Ptr<D3D12_RESOURCE_DESC>({
-            .Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-            .Width = cube_resolution,
-            .Height = cube_resolution,
-            .DepthOrArraySize = 6,
-            .Format = DXGI_FORMAT_R16G16B16A16_FLOAT,
-            .SampleDesc = { .Count = 1 },
-            .Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET
-        }),
-        D3D12_RESOURCE_STATE_COPY_DEST,
-        NULL
-    );
-    *env_texture_srv = graphics::Allocate_Cpu_Descriptors(gr, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1);
-    gr->device->CreateShaderResourceView(
-        graphics::Get_Resource(gr, *env_texture),
-        Get_Const_Ptr<D3D12_SHADER_RESOURCE_VIEW_DESC>({
-            .ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE,
-            .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
-            .TextureCube = { .MipLevels = (U32)-1 },
-        }),
-        *env_texture_srv
-    );
-
     gr->cmdlist->RSSetViewports(
         1,
-        Get_Const_Ptr(CD3DX12_VIEWPORT(0.0f, 0.0f, (F32)cube_resolution, (F32)cube_resolution))
+        Get_Const_Ptr(CD3DX12_VIEWPORT(0.0f, 0.0f, (F32)texture_resolution, (F32)texture_resolution))
     );
     gr->cmdlist->RSSetScissorRects(
         1,
-        Get_Const_Ptr(CD3DX12_RECT(0, 0, cube_resolution, cube_resolution))
+        Get_Const_Ptr(CD3DX12_RECT(0, 0, texture_resolution, texture_resolution))
     );
     gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -170,7 +145,7 @@ void Create_Env_Cube_Texture(
             1
         );
         gr->device->CreateRenderTargetView(
-            graphics::Get_Resource(gr, *env_texture),
+            graphics::Get_Resource(gr, texture),
             Get_Const_Ptr<D3D12_RENDER_TARGET_VIEW_DESC>({
                 .ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DARRAY,
                 .Texture2DArray = { .FirstArraySlice = cube_face_idx, .ArraySize = 1 },
@@ -178,7 +153,7 @@ void Create_Env_Cube_Texture(
             cube_face_rtv
         );
 
-        graphics::Add_Transition_Barrier(gr, *env_texture, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        graphics::Add_Transition_Barrier(gr, texture, D3D12_RESOURCE_STATE_RENDER_TARGET);
         graphics::Flush_Resource_Barriers(gr);
         gr->cmdlist->OMSetRenderTargets(1, &cube_face_rtv, TRUE, NULL);
 
@@ -190,7 +165,7 @@ void Create_Env_Cube_Texture(
         gr->cmdlist->SetGraphicsRootConstantBufferView(3, gpu_addr);
         gr->cmdlist->DrawInstanced(36, 1, 0, 0); // 36 indices for cube mesh
     }
-    graphics::Add_Transition_Barrier(gr, *env_texture, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    graphics::Add_Transition_Barrier(gr, texture, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     graphics::Flush_Resource_Barriers(gr);
 }
 
@@ -243,7 +218,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         };
         desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         desc.DepthStencilState.DepthEnable = FALSE;
-		desc.RasterizerState.MultisampleEnable = num_msaa_samples > 1 ? TRUE : FALSE;
+        desc.RasterizerState.MultisampleEnable = num_msaa_samples > 1 ? TRUE : FALSE;
         demo->display_texture_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
     {
@@ -263,7 +238,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             .SampleDesc = { .Count = num_msaa_samples, .Quality = 0 },
         };
         desc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
-		desc.RasterizerState.MultisampleEnable = num_msaa_samples > 1 ? TRUE : FALSE;
+        desc.RasterizerState.MultisampleEnable = num_msaa_samples > 1 ? TRUE : FALSE;
         demo->mesh_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
     {
@@ -283,12 +258,12 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             .SampleDesc = { .Count = num_msaa_samples, .Quality = 0 },
         };
         desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-		desc.RasterizerState.MultisampleEnable = num_msaa_samples > 1 ? TRUE : FALSE;
+        desc.RasterizerState.MultisampleEnable = num_msaa_samples > 1 ? TRUE : FALSE;
         demo->mesh_debug_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
     {
-        const VECTOR<U8> vs = library::Load_File("data/shaders/sample_env_vs_ps.vs.cso");
-        const VECTOR<U8> ps = library::Load_File("data/shaders/sample_env_vs_ps.ps.cso");
+        const VECTOR<U8> vs = library::Load_File("data/shaders/sample_env_texture_vs_ps.vs.cso");
+        const VECTOR<U8> ps = library::Load_File("data/shaders/sample_env_texture_vs_ps.ps.cso");
         D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
             .VS = { vs.data(), vs.size() },
             .PS = { ps.data(), ps.size() },
@@ -306,7 +281,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         desc.RasterizerState.MultisampleEnable = num_msaa_samples > 1 ? TRUE : FALSE;
         desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
         desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-        demo->sample_env_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
+        demo->sample_env_texture_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
 
     VHR(gr->d2d.context->CreateSolidColorBrush({ 0.0f }, &demo->hud.brush));
@@ -497,6 +472,67 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             demo->dynamic_texture_srv
         );
     }
+    // Create env. cube texture.
+    demo->env_texture = graphics::Create_Committed_Resource(
+        gr,
+        D3D12_HEAP_TYPE_DEFAULT,
+        D3D12_HEAP_FLAG_NONE,
+        Get_Const_Ptr<D3D12_RESOURCE_DESC>({
+            .Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+            .Width = env_cube_texture_resolution,
+            .Height = env_cube_texture_resolution,
+            .DepthOrArraySize = 6,
+            .Format = DXGI_FORMAT_R16G16B16A16_FLOAT,
+            .SampleDesc = { .Count = 1 },
+            .Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET
+        }),
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        NULL
+    );
+    demo->env_texture_srv = graphics::Allocate_Cpu_Descriptors(
+        gr,
+        D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+        1
+    );
+    gr->device->CreateShaderResourceView(
+        graphics::Get_Resource(gr, demo->env_texture),
+        Get_Const_Ptr<D3D12_SHADER_RESOURCE_VIEW_DESC>({
+            .ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE,
+            .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+            .TextureCube = { .MipLevels = (U32)-1 },
+        }),
+        demo->env_texture_srv
+    );
+
+    // Create temporary pipelines for generating cube textures content (env., irradiance, etc.).
+    graphics::PIPELINE_HANDLE generate_env_texture_pso = {};
+    graphics::PIPELINE_HANDLE generate_irradiance_texture_pso = {};
+    {
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
+            .BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT),
+            .SampleMask = UINT32_MAX,
+            .RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT),
+            .DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT),
+            .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
+            .NumRenderTargets = 1,
+            .RTVFormats = { DXGI_FORMAT_R16G16B16A16_FLOAT },
+            .SampleDesc = { .Count = 1 },
+        };
+        desc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
+        desc.DepthStencilState.DepthEnable = FALSE;
+
+        VECTOR<U8> vs = library::Load_File("data/shaders/generate_env_texture_vs_ps.vs.cso");
+        VECTOR<U8> ps = library::Load_File("data/shaders/generate_env_texture_vs_ps.ps.cso");
+        desc.VS = { vs.data(), vs.size() };
+        desc.PS = { ps.data(), ps.size() };
+        generate_env_texture_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
+
+        vs = library::Load_File("data/shaders/generate_irradiance_texture_vs_ps.vs.cso");
+        ps = library::Load_File("data/shaders/generate_irradiance_texture_vs_ps.ps.cso");
+        desc.VS = { vs.data(), vs.size() };
+        desc.PS = { ps.data(), ps.size() };
+        generate_irradiance_texture_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
+    }
 
     library::MIPMAP_GENERATOR mipgen_rgba8 = {};
     library::MIPMAP_GENERATOR mipgen_rgba16f = {};
@@ -507,6 +543,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
 
     library::Init_Gui_Context(&demo->gui, gr, num_msaa_samples);
 
+    // Create and upload textures.
     {
         LPCWSTR names[] = {
             L"data/SciFiHelmet/SciFiHelmet_AmbientOcclusion.png",
@@ -535,6 +572,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     // Upload indices.
     Upload_To_Gpu(gr, demo->index_buffer, &all_indices, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
+    // Generate env. cube texture content from equirectangular HDR image.
     graphics::RESOURCE_HANDLE equirectangular_texture = {};
     D3D12_CPU_DESCRIPTOR_HANDLE equirectangular_texture_srv = {};
     {
@@ -574,31 +612,10 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             equirectangular_texture,
             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
         );
-    }
-    graphics::Flush_Resource_Barriers(gr);
-
-    graphics::PIPELINE_HANDLE equirect_to_cube_pso = {};
-    {
-        const VECTOR<U8> vs = library::Load_File("data/shaders/equirectangular_to_cube_vs_ps.vs.cso");
-        const VECTOR<U8> ps = library::Load_File("data/shaders/equirectangular_to_cube_vs_ps.ps.cso");
-        D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
-            .VS = { vs.data(), vs.size() },
-            .PS = { ps.data(), ps.size() },
-            .BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT),
-            .SampleMask = UINT32_MAX,
-            .RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT),
-            .DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT),
-            .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
-            .NumRenderTargets = 1,
-            .RTVFormats = { DXGI_FORMAT_R16G16B16A16_FLOAT },
-            .SampleDesc = { .Count = 1 },
-        };
-        desc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
-        desc.DepthStencilState.DepthEnable = FALSE,
-        equirect_to_cube_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
+        graphics::Flush_Resource_Barriers(gr);
     }
 
-    graphics::Set_Pipeline_State(gr, equirect_to_cube_pso);
+    graphics::Set_Pipeline_State(gr, generate_env_texture_pso);
     {
         const MESH cube = demo->meshes[1];
         gr->cmdlist->SetGraphicsRoot32BitConstant(0, cube.index_offset, 0);
@@ -613,15 +630,20 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         2,
         graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, equirectangular_texture_srv)
     );
-    Create_Env_Cube_Texture(gr, &demo->env_texture, &demo->env_texture_srv);
+    Render_To_Cube_Texture(gr, demo->env_texture, env_cube_texture_resolution);
     library::Generate_Mipmaps(&mipgen_rgba16f, gr, demo->env_texture);
 
+    // Generate irradiance texture map.
+
+    // Flush commands and wait for GPU to complete them.
     graphics::Flush_Gpu_Commands(gr);
     graphics::Finish_Gpu_Commands(gr);
 
+    // Release temporary resources.
     library::Deinit_Mipmap_Generator(&mipgen_rgba8, gr);
     library::Deinit_Mipmap_Generator(&mipgen_rgba16f, gr);
-    graphics::Release_Pipeline(gr, equirect_to_cube_pso);
+    graphics::Release_Pipeline(gr, generate_env_texture_pso);
+    graphics::Release_Pipeline(gr, generate_irradiance_texture_pso);
     graphics::Release_Resource(gr, equirectangular_texture);
 
     library::Init_Frame_Stats(&demo->frame_stats);
@@ -653,7 +675,7 @@ void Deinit_Demo_State(DEMO_STATE* demo) {
     graphics::Release_Pipeline(gr, demo->display_texture_pso);
     graphics::Release_Pipeline(gr, demo->mesh_pso);
     graphics::Release_Pipeline(gr, demo->mesh_debug_pso);
-    graphics::Release_Pipeline(gr, demo->sample_env_pso);
+    graphics::Release_Pipeline(gr, demo->sample_env_texture_pso);
     graphics::Deinit_Context(gr);
 }
 
@@ -864,10 +886,10 @@ void Update_Demo_State(DEMO_STATE* demo) {
         }
     }
 
-    // Draw env cube texture
+    // Draw env cube texture.
     {
         const MESH cube = demo->meshes[1];
-        graphics::Set_Pipeline_State(gr, demo->sample_env_pso);
+        graphics::Set_Pipeline_State(gr, demo->sample_env_texture_pso);
         gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         gr->cmdlist->SetGraphicsRoot32BitConstant(0, cube.index_offset, 0);
         gr->cmdlist->SetGraphicsRoot32BitConstant(0, cube.vertex_offset, 1);
