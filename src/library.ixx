@@ -581,9 +581,7 @@ export void Generate_Mipmaps(
     assert(texture_desc.MipLevels > 1);
 
     for (U32 array_slice = 0; array_slice < texture_desc.DepthOrArraySize; ++array_slice) {
-        // Save heap size for temporary descriptor allocations.
-        const U32 cbv_srv_uav_cpu_heap_size = gr->cbv_srv_uav_cpu_heap.size;
-        const D3D12_CPU_DESCRIPTOR_HANDLE texture_srv = graphics::Allocate_Cpu_Descriptors(
+        const D3D12_CPU_DESCRIPTOR_HANDLE texture_srv = graphics::Allocate_Temp_Cpu_Descriptors(
             gr,
             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
             1
@@ -611,8 +609,7 @@ export void Generate_Mipmaps(
             (U32)eastl::size(mipgen->scratch_textures),
             mipgen->base_uav
         );
-        // Restore heap size - we're done with temporary descriptor allocations.
-        gr->cbv_srv_uav_cpu_heap.size = cbv_srv_uav_cpu_heap_size;
+        graphics::Deallocate_Temp_Cpu_Descriptors(gr, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
         graphics::Set_Pipeline_State(gr, mipgen->pso);
         U32 total_num_mips = (U32)(texture_desc.MipLevels - 1);

@@ -79,6 +79,7 @@ struct DESCRIPTOR_HEAP {
     ID3D12_DESCRIPTOR_HEAP* heap;
     DESCRIPTOR base;
     U32 size;
+    U32 size_temp;
     U32 capacity;
     U32 descriptor_size;
 };
@@ -739,14 +740,68 @@ export D3D12_CPU_DESCRIPTOR_HANDLE Allocate_Cpu_Descriptors(
     assert(gr && num > 0);
     switch (type) {
     case D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV:
+        assert(gr->cbv_srv_uav_cpu_heap.size_temp == 0);
         return Allocate_Descriptors(&gr->cbv_srv_uav_cpu_heap, num).cpu_handle;
     case D3D12_DESCRIPTOR_HEAP_TYPE_RTV:
+        assert(gr->rtv_heap.size_temp == 0);
         return Allocate_Descriptors(&gr->rtv_heap, num).cpu_handle;
     case D3D12_DESCRIPTOR_HEAP_TYPE_DSV:
+        assert(gr->dsv_heap.size_temp == 0);
         return Allocate_Descriptors(&gr->dsv_heap, num).cpu_handle;
     }
     assert(0);
     return D3D12_CPU_DESCRIPTOR_HANDLE{};
+}
+
+export D3D12_CPU_DESCRIPTOR_HANDLE Allocate_Temp_Cpu_Descriptors(
+    CONTEXT* gr,
+    D3D12_DESCRIPTOR_HEAP_TYPE type,
+    U32 num
+) {
+    assert(gr && num > 0);
+    DESCRIPTOR_HEAP* dheap = NULL;
+    switch (type) {
+    case D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV:
+        dheap = &gr->cbv_srv_uav_cpu_heap;
+        break;
+    case D3D12_DESCRIPTOR_HEAP_TYPE_RTV:
+        dheap = &gr->rtv_heap;
+        break;
+    case D3D12_DESCRIPTOR_HEAP_TYPE_DSV:
+        dheap = &gr->dsv_heap;
+        break;
+    }
+    assert(dheap != NULL);
+
+    const D3D12_CPU_DESCRIPTOR_HANDLE handle = Allocate_Descriptors(dheap, num).cpu_handle;
+    dheap->size_temp += num;
+    return handle;
+}
+
+export void Deallocate_Temp_Cpu_Descriptors(
+    CONTEXT* gr,
+    D3D12_DESCRIPTOR_HEAP_TYPE type
+) {
+    assert(gr);
+    DESCRIPTOR_HEAP* dheap = NULL;
+    switch (type) {
+    case D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV:
+        dheap = &gr->cbv_srv_uav_cpu_heap;
+        break;
+    case D3D12_DESCRIPTOR_HEAP_TYPE_RTV:
+        dheap = &gr->rtv_heap;
+        break;
+    case D3D12_DESCRIPTOR_HEAP_TYPE_DSV:
+        dheap = &gr->dsv_heap;
+        break;
+    }
+    assert(dheap != NULL);
+
+    if (dheap->size_temp > 0) {
+        assert(dheap->size_temp <= dheap->size);
+        dheap->size -= dheap->size_temp;
+        dheap->size_temp = 0;
+    }
 }
 
 export DESCRIPTOR Allocate_Gpu_Descriptors(CONTEXT* gr, U32 num) {

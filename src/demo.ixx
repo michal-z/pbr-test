@@ -140,7 +140,7 @@ void Draw_To_Cube_Texture(
     const XMMATRIX view_to_clip = XMMatrixPerspectiveFovLH(XM_PIDIV2, 1.0f, 0.1f, 10.0f);
 
     for (U32 cube_face_idx = 0; cube_face_idx < 6; ++cube_face_idx) {
-        const D3D12_CPU_DESCRIPTOR_HANDLE cube_face_rtv = graphics::Allocate_Cpu_Descriptors(
+        const D3D12_CPU_DESCRIPTOR_HANDLE cube_face_rtv = graphics::Allocate_Temp_Cpu_Descriptors(
             gr,
             D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
             1
@@ -695,6 +695,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     graphics::Release_Pipeline(gr, generate_env_texture_pso);
     graphics::Release_Pipeline(gr, generate_irradiance_texture_pso);
     graphics::Release_Resource(gr, equirectangular_texture);
+    graphics::Deallocate_Temp_Cpu_Descriptors(gr, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
     library::Init_Frame_Stats(&demo->frame_stats);
 
