@@ -613,11 +613,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         2,
         graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, equirectangular_texture_srv)
     );
-    Create_Env_Cube_Texture(
-        gr,
-        &demo->env_texture,
-        &demo->env_texture_srv
-    );
+    Create_Env_Cube_Texture(gr, &demo->env_texture, &demo->env_texture_srv);
     library::Generate_Mipmaps(&mipgen_rgba16f, gr, demo->env_texture);
 
     graphics::Flush_Gpu_Commands(gr);
@@ -630,15 +626,8 @@ bool Init_Demo_State(DEMO_STATE* demo) {
 
     library::Init_Frame_Stats(&demo->frame_stats);
 
-    demo->camera = {
-        .position = XMFLOAT3(0.0f, 3.0f, -3.0f),
-        .pitch = XM_PIDIV4,
-        .yaw = 0.0f,
-    };
-    demo->mouse = {
-        .cursor_prev_x = 0,
-        .cursor_prev_y = 0,
-    };
+    demo->camera = { .position = XMFLOAT3(0.0f, 3.0f, -3.0f), .pitch = XM_PIDIV4, .yaw = 0.0f };
+    demo->mouse = { .cursor_prev_x = 0, .cursor_prev_y = 0 };
     return true;
 }
 
