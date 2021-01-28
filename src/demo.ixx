@@ -32,6 +32,7 @@ struct DEMO_STATE {
     graphics::PIPELINE_HANDLE display_texture_pso;
     graphics::PIPELINE_HANDLE mesh_pso;
     graphics::PIPELINE_HANDLE mesh_debug_pso;
+    graphics::PIPELINE_HANDLE sample_env_pso;
     graphics::RESOURCE_HANDLE vertex_buffer;
     graphics::RESOURCE_HANDLE index_buffer;
     graphics::RESOURCE_HANDLE renderable_const_buffer;
@@ -228,7 +229,6 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     {
         const VECTOR<U8> vs = library::Load_File("data/shaders/display_texture_vs_ps.vs.cso");
         const VECTOR<U8> ps = library::Load_File("data/shaders/display_texture_vs_ps.ps.cso");
-
         D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
             .VS = { vs.data(), vs.size() },
             .PS = { ps.data(), ps.size() },
@@ -243,12 +243,12 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         };
         desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         desc.DepthStencilState.DepthEnable = FALSE;
+		desc.RasterizerState.MultisampleEnable = num_msaa_samples > 1 ? TRUE : FALSE;
         demo->display_texture_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
     {
         const VECTOR<U8> vs = library::Load_File("data/shaders/mesh_vs_ps.vs.cso");
         const VECTOR<U8> ps = library::Load_File("data/shaders/mesh_vs_ps.ps.cso");
-
         D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
             .VS = { vs.data(), vs.size() },
             .PS = { ps.data(), ps.size() },
@@ -263,12 +263,12 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             .SampleDesc = { .Count = num_msaa_samples, .Quality = 0 },
         };
         desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+		desc.RasterizerState.MultisampleEnable = num_msaa_samples > 1 ? TRUE : FALSE;
         demo->mesh_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
     {
         const VECTOR<U8> vs = library::Load_File("data/shaders/mesh_debug_vs_ps.vs.cso");
         const VECTOR<U8> ps = library::Load_File("data/shaders/mesh_debug_vs_ps.ps.cso");
-
         D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
             .VS = { vs.data(), vs.size() },
             .PS = { ps.data(), ps.size() },
@@ -283,12 +283,12 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             .SampleDesc = { .Count = num_msaa_samples, .Quality = 0 },
         };
         desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+		desc.RasterizerState.MultisampleEnable = num_msaa_samples > 1 ? TRUE : FALSE;
         demo->mesh_debug_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
-    graphics::PIPELINE_HANDLE equirect_to_cube_pso = {};
     {
-        const VECTOR<U8> vs = library::Load_File("data/shaders/equirectangular_to_cube_vs_ps.vs.cso");
-        const VECTOR<U8> ps = library::Load_File("data/shaders/equirectangular_to_cube_vs_ps.ps.cso");
+        const VECTOR<U8> vs = library::Load_File("data/shaders/sample_env_vs_ps.vs.cso");
+        const VECTOR<U8> ps = library::Load_File("data/shaders/sample_env_vs_ps.ps.cso");
         D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
             .VS = { vs.data(), vs.size() },
             .PS = { ps.data(), ps.size() },
@@ -298,21 +298,24 @@ bool Init_Demo_State(DEMO_STATE* demo) {
             .DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT),
             .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
             .NumRenderTargets = 1,
-            .RTVFormats = { DXGI_FORMAT_R16G16B16A16_FLOAT },
-            .SampleDesc = { .Count = 1 },
+            .RTVFormats = { DXGI_FORMAT_R8G8B8A8_UNORM_SRGB },
+            .DSVFormat = DXGI_FORMAT_D32_FLOAT,
+            .SampleDesc = { .Count = num_msaa_samples, .Quality = 0 },
         };
-        desc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
-        desc.DepthStencilState.DepthEnable = FALSE,
-        equirect_to_cube_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
+        desc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
+        desc.RasterizerState.MultisampleEnable = num_msaa_samples > 1 ? TRUE : FALSE;
+        desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+        desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+        demo->sample_env_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
 
     VHR(gr->d2d.context->CreateSolidColorBrush({ 0.0f }, &demo->hud.brush));
-    demo->hud.brush->SetColor({ .r = 1.0f, .g = 1.0f, .b = 1.0f, .a = 1.0f });
+    demo->hud.brush->SetColor({ .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f });
 
     VHR(gr->d2d.factory_dwrite->CreateTextFormat(
         L"Verdana",
         NULL,
-        DWRITE_FONT_WEIGHT_NORMAL,
+        DWRITE_FONT_WEIGHT_BOLD,
         DWRITE_FONT_STYLE_NORMAL,
         DWRITE_FONT_STRETCH_NORMAL,
         32.0f,
@@ -572,14 +575,35 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     }
     graphics::Flush_Resource_Barriers(gr);
 
+    graphics::PIPELINE_HANDLE equirect_to_cube_pso = {};
+    {
+        const VECTOR<U8> vs = library::Load_File("data/shaders/equirectangular_to_cube_vs_ps.vs.cso");
+        const VECTOR<U8> ps = library::Load_File("data/shaders/equirectangular_to_cube_vs_ps.ps.cso");
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
+            .VS = { vs.data(), vs.size() },
+            .PS = { ps.data(), ps.size() },
+            .BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT),
+            .SampleMask = UINT32_MAX,
+            .RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT),
+            .DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT),
+            .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
+            .NumRenderTargets = 1,
+            .RTVFormats = { DXGI_FORMAT_R16G16B16A16_FLOAT },
+            .SampleDesc = { .Count = 1 },
+        };
+        desc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
+        desc.DepthStencilState.DepthEnable = FALSE,
+        equirect_to_cube_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
+    }
+
     graphics::Set_Pipeline_State(gr, equirect_to_cube_pso);
     gr->cmdlist->SetGraphicsRoot32BitConstant(0, demo->meshes[1].index_offset, 0);
     gr->cmdlist->SetGraphicsRoot32BitConstant(0, demo->meshes[1].vertex_offset, 1);
     gr->cmdlist->SetGraphicsRoot32BitConstant(0, 0, 2);
     {
-        const auto table_base = graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->vertex_buffer_srv);
+        const auto base = graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->vertex_buffer_srv);
         graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->index_buffer_srv);
-        gr->cmdlist->SetGraphicsRootDescriptorTable(1, table_base);
+        gr->cmdlist->SetGraphicsRootDescriptorTable(1, base);
     }
     gr->cmdlist->SetGraphicsRootDescriptorTable(
         2,
@@ -634,6 +658,7 @@ void Deinit_Demo_State(DEMO_STATE* demo) {
     graphics::Release_Pipeline(gr, demo->display_texture_pso);
     graphics::Release_Pipeline(gr, demo->mesh_pso);
     graphics::Release_Pipeline(gr, demo->mesh_debug_pso);
+    graphics::Release_Pipeline(gr, demo->sample_env_pso);
     graphics::Deinit_Context(gr);
 }
 
@@ -732,22 +757,24 @@ void Update_Demo_State(DEMO_STATE* demo) {
 
     D3D12_GPU_VIRTUAL_ADDRESS glob_buffer_addr = {};
 
+    const XMMATRIX camera_world_to_view = XMMatrixLookToLH(
+        XMLoadFloat3(&demo->camera.position),
+        XMLoadFloat3(&demo->camera.forward),
+        XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
+    );
+    const XMMATRIX camera_view_to_clip = XMMatrixPerspectiveFovLH(
+        XM_PI / 3.0f,
+        (F32)gr->viewport_width / gr->viewport_height,
+        0.1f,
+        100.0f
+    );
+
     // Upload 'GLOBALS' data.
     {
         const auto [cpu_addr, gpu_addr] = graphics::Allocate_Upload_Memory(gr, sizeof GLOBALS);
         glob_buffer_addr = gpu_addr;
 
-        XMMATRIX world_to_clip = XMMatrixLookToLH(
-            XMLoadFloat3(&demo->camera.position),
-            XMLoadFloat3(&demo->camera.forward),
-            XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
-        );
-        world_to_clip *= XMMatrixPerspectiveFovLH(
-            XM_PI / 3.0f,
-            (F32)gr->viewport_width / gr->viewport_height,
-            0.1f,
-            100.0f
-        );
+        const XMMATRIX world_to_clip = camera_world_to_view * camera_view_to_clip;
         GLOBALS* globals = (GLOBALS*)cpu_addr;
         XMStoreFloat4x4(&globals->world_to_clip, XMMatrixTranspose(world_to_clip));
         globals->draw_mode = demo->draw_mode;
@@ -840,6 +867,33 @@ void Update_Demo_State(DEMO_STATE* demo) {
             );
             gr->cmdlist->DrawInstanced(renderable->mesh.num_indices * 6, 1, 0, 0);
         }
+    }
+
+    // Draw env cube texture
+    {
+        const MESH cube = demo->meshes[1];
+        graphics::Set_Pipeline_State(gr, demo->sample_env_pso);
+        gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        gr->cmdlist->SetGraphicsRoot32BitConstant(0, cube.index_offset, 0);
+        gr->cmdlist->SetGraphicsRoot32BitConstant(0, cube.vertex_offset, 1);
+        gr->cmdlist->SetGraphicsRoot32BitConstant(0, 0, 2);
+        {
+            const auto base = graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->vertex_buffer_srv);
+            graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->index_buffer_srv);
+            gr->cmdlist->SetGraphicsRootDescriptorTable(1, base);
+        }
+        gr->cmdlist->SetGraphicsRootDescriptorTable(
+            2,
+            graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->env_texture_srv)
+        );
+        XMMATRIX world_to_view_origin = camera_world_to_view;
+        world_to_view_origin.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+        const XMMATRIX object_to_clip = world_to_view_origin * camera_view_to_clip;
+
+        const auto [cpu_addr, gpu_addr] = graphics::Allocate_Upload_Memory(gr, sizeof XMFLOAT4X4A);
+        XMStoreFloat4x4A((XMFLOAT4X4A*)cpu_addr, XMMatrixTranspose(object_to_clip));
+        gr->cmdlist->SetGraphicsRootConstantBufferView(3, gpu_addr);
+        gr->cmdlist->DrawInstanced(36, 1, 0, 0); // 36 indices for cube mesh
     }
 
     if (demo->enable_dynamic_texture) {

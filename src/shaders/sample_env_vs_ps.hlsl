@@ -23,37 +23,31 @@ ConstantBuffer<_GLOBALS> cbv_glob : register(b1);
 StructuredBuffer<VERTEX> srv_vertices : register(t0);
 Buffer<U32> srv_indices : register(t1);
 
-Texture2D srv_equirectangular_texture : register(t2);
+TextureCube srv_env_texture : register(t2);
 SamplerState sam_s0 : register(s0);
-
-XMFLOAT2 Sample_Spherical_Map(XMFLOAT3 v) {
-    XMFLOAT2 uv = XMFLOAT2(atan2(v.z, v.x), asin(v.y));
-    uv *= XMFLOAT2(0.1591f, 0.3183f);
-    uv += 0.5f;
-    return uv;
-}
 
 [RootSignature(ROOT_SIGNATURE)]
 void Vertex_Shader(
     U32 vertex_id : SV_VertexID,
     out XMFLOAT4 out_position_ndc : SV_Position,
-    out XMFLOAT3 out_position : _Position
+    out XMFLOAT3 out_uvw : _Uvw
 ) {
     const U32 vertex_index = srv_indices[vertex_id + cbv_draw_cmd.index_offset] +
         cbv_draw_cmd.vertex_offset;
 
     const XMFLOAT3 position = srv_vertices[vertex_index].position;
 
-    out_position_ndc = mul(XMFLOAT4(position, 1.0f), cbv_glob.object_to_clip);
-    out_position = position; // Position in object space.
+    out_position_ndc = mul(XMFLOAT4(position, 1.0f), cbv_glob.object_to_clip).xyww;
+    out_uvw = position;
 }
 
 [RootSignature(ROOT_SIGNATURE)]
 void Pixel_Shader(
-    float4 position_ndc : SV_Position,
-    float3 position : _Position,
-    out float4 out_color : SV_Target0
+    XMFLOAT4 position_ndc : SV_Position,
+    XMFLOAT3 uvw : _Uvw,
+    out XMFLOAT4 out_color : SV_Target0
 ) {
-    const XMFLOAT2 uv = Sample_Spherical_Map(normalize(position));
-    out_color = srv_equirectangular_texture.SampleLevel(sam_s0, uv, 0);
+    XMFLOAT3 env_color = srv_env_texture.Sample(sam_s0, uvw).rgb;
+    env_color = env_color / (env_color + 1.0f);
+    out_color = XMFLOAT4(env_color, 1.0f);
 }

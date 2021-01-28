@@ -70,6 +70,7 @@
     <FxCompile Include="..\src\shaders\imgui_vs_ps.hlsl" />
     <FxCompile Include="..\src\shaders\mesh_debug_vs_ps.hlsl" />
     <FxCompile Include="..\src\shaders\mesh_vs_ps.hlsl" />
+    <FxCompile Include="..\src\shaders\sample_env_vs_ps.hlsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
