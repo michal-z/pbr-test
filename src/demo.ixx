@@ -314,6 +314,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     }
     demo->renderables.push_back({ .mesh = demo->meshes[0], .position = { 0.0f, 0.0f, 0.0f } });
 
+    // Create one global vertex buffer for all static geometry.
     demo->vertex_buffer = graphics::Create_Committed_Resource(
         gr,
         D3D12_HEAP_TYPE_DEFAULT,
@@ -340,7 +341,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         }),
         demo->vertex_buffer_srv
     );
-
+    // Create one global index buffer for all static geometry.
     demo->index_buffer = graphics::Create_Committed_Resource(
         gr,
         D3D12_HEAP_TYPE_DEFAULT,
@@ -364,7 +365,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         }),
         demo->index_buffer_srv
     );
-
+    // Create structured buffer containing constants for each renderable object.
     demo->renderable_const_buffer = graphics::Create_Committed_Resource(
         gr,
         D3D12_HEAP_TYPE_DEFAULT,
@@ -604,7 +605,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     // Upload indices.
     Upload_To_Gpu(gr, demo->index_buffer, &all_indices, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-    // Generate env. cube texture content from equirectangular HDR image.
+    // Upload equirectangular HDR image to temporary 2D texture.
     graphics::RESOURCE_HANDLE equirectangular_texture = {};
     D3D12_CPU_DESCRIPTOR_HANDLE equirectangular_texture_srv = {};
     {
@@ -647,6 +648,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         graphics::Flush_Resource_Barriers(gr);
     }
 
+    // Generate env. cube texture from equirectangular HDR image.
     graphics::Set_Pipeline_State(gr, generate_env_texture_pso);
     {
         const MESH cube = demo->meshes[1];
