@@ -753,7 +753,7 @@ export D3D12_CPU_DESCRIPTOR_HANDLE Allocate_Cpu_Descriptors(
     return D3D12_CPU_DESCRIPTOR_HANDLE{};
 }
 
-export D3D12_CPU_DESCRIPTOR_HANDLE Allocate_Temp_Cpu_Descriptors(
+export D3D12_CPU_DESCRIPTOR_HANDLE Allocate_Cpu_Temp_Descriptors(
     CONTEXT* gr,
     D3D12_DESCRIPTOR_HEAP_TYPE type,
     U32 num
@@ -778,7 +778,7 @@ export D3D12_CPU_DESCRIPTOR_HANDLE Allocate_Temp_Cpu_Descriptors(
     return handle;
 }
 
-export void Deallocate_Temp_Cpu_Descriptors(
+export void Deallocate_Cpu_Temp_Descriptors(
     CONTEXT* gr,
     D3D12_DESCRIPTOR_HEAP_TYPE type
 ) {

@@ -12,6 +12,7 @@ constexpr U32 env_texture_resolution = 512;
 constexpr U32 irradiance_texture_resolution = 64;
 constexpr U32 prefiltered_env_texture_resolution = 256;
 constexpr U32 prefiltered_env_texture_num_mip_levels = 6;
+constexpr U32 brdf_integration_texture_resolution = 512;
 
 struct MESH {
     U32 index_offset;
@@ -47,6 +48,7 @@ struct DEMO_STATE {
     graphics::RESOURCE_HANDLE env_texture;
     graphics::RESOURCE_HANDLE irradiance_texture;
     graphics::RESOURCE_HANDLE prefiltered_env_texture;
+    graphics::RESOURCE_HANDLE brdf_integration_texture;
     D3D12_CPU_DESCRIPTOR_HANDLE vertex_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE index_buffer_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE renderable_const_buffer_srv;
@@ -57,6 +59,7 @@ struct DEMO_STATE {
     D3D12_CPU_DESCRIPTOR_HANDLE env_texture_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE irradiance_texture_srv;
     D3D12_CPU_DESCRIPTOR_HANDLE prefiltered_env_texture_srv;
+    D3D12_CPU_DESCRIPTOR_HANDLE brdf_integration_texture_srv;
     struct {
         ID2D1_SOLID_COLOR_BRUSH* brush;
         IDWRITE_TEXT_FORMAT* text_format;
@@ -147,7 +150,7 @@ void Draw_To_Cube_Texture(
     const XMMATRIX view_to_clip = XMMatrixPerspectiveFovLH(XM_PIDIV2, 1.0f, 0.1f, 10.0f);
 
     for (U32 cube_face_idx = 0; cube_face_idx < 6; ++cube_face_idx) {
-        const D3D12_CPU_DESCRIPTOR_HANDLE cube_face_rtv = graphics::Allocate_Temp_Cpu_Descriptors(
+        const D3D12_CPU_DESCRIPTOR_HANDLE cube_face_rtv = graphics::Allocate_Cpu_Temp_Descriptors(
             gr,
             D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
             1
@@ -617,6 +620,17 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         generate_prefiltered_env_texture_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
 
+    graphics::PIPELINE_HANDLE generate_brdf_integration_texture_pso = {};
+    {
+        const VECTOR<U8> cs = library::Load_File(
+            "data/shaders/generate_brdf_integration_texture_cs.cs.cso"
+        );
+        D3D12_COMPUTE_PIPELINE_STATE_DESC desc = {
+            .CS = { cs.data(), cs.size() },
+        };
+        generate_brdf_integration_texture_pso = graphics::Create_Compute_Shader_Pipeline(gr, &desc);
+    }
+
     library::MIPMAP_GENERATOR mipgen_rgba8 = {};
     library::MIPMAP_GENERATOR mipgen_rgba16f = {};
     library::Init_Mipmap_Generator(&mipgen_rgba8, gr, DXGI_FORMAT_R8G8B8A8_UNORM);
@@ -769,8 +783,9 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     graphics::Release_Pipeline(gr, generate_env_texture_pso);
     graphics::Release_Pipeline(gr, generate_irradiance_texture_pso);
     graphics::Release_Pipeline(gr, generate_prefiltered_env_texture_pso);
+    graphics::Release_Pipeline(gr, generate_brdf_integration_texture_pso);
     graphics::Release_Resource(gr, equirectangular_texture);
-    graphics::Deallocate_Temp_Cpu_Descriptors(gr, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    graphics::Deallocate_Cpu_Temp_Descriptors(gr, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
     library::Init_Frame_Stats(&demo->frame_stats);
 
