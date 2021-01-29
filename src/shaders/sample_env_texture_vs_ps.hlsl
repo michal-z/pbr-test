@@ -8,7 +8,7 @@
     "CBV(b1, visibility = SHADER_VISIBILITY_VERTEX), " \
     "StaticSampler(" \
     "   s0, " \
-    "   filter = FILTER_MIN_MAG_LINEAR_MIP_POINT, " \
+    "   filter = FILTER_MIN_MAG_MIP_LINEAR, " \
     "   visibility = SHADER_VISIBILITY_PIXEL, " \
     "   addressU = TEXTURE_ADDRESS_BORDER, " \
     "   addressV = TEXTURE_ADDRESS_BORDER" \
