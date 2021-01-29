@@ -116,16 +116,19 @@ void Create_And_Upload_Texture(
 void Draw_To_Cube_Texture(
     graphics::CONTEXT* gr,
     graphics::RESOURCE_HANDLE texture,
-    U32 texture_resolution
+    U32 target_mip_level
 ) {
+    const D3D12_RESOURCE_DESC desc = graphics::Get_Resource_Desc(gr, texture);
+    assert(target_mip_level < desc.MipLevels);
+    const U32 texture_width = (U32)desc.Width >> target_mip_level;
+    const U32 texture_height = desc.Height >> target_mip_level;
+    assert(texture_width == texture_height);
+
     gr->cmdlist->RSSetViewports(
         1,
-        Get_Const_Ptr(CD3DX12_VIEWPORT(0.0f, 0.0f, (F32)texture_resolution, (F32)texture_resolution))
+        Get_Const_Ptr(CD3DX12_VIEWPORT(0.0f, 0.0f, (F32)texture_width, (F32)texture_height))
     );
-    gr->cmdlist->RSSetScissorRects(
-        1,
-        Get_Const_Ptr(CD3DX12_RECT(0, 0, texture_resolution, texture_resolution))
-    );
+    gr->cmdlist->RSSetScissorRects(1, Get_Const_Ptr(CD3DX12_RECT(0, 0, texture_width, texture_height)));
     gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     const auto zero = XMVectorZero();
@@ -149,7 +152,11 @@ void Draw_To_Cube_Texture(
             graphics::Get_Resource(gr, texture),
             Get_Const_Ptr<D3D12_RENDER_TARGET_VIEW_DESC>({
                 .ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DARRAY,
-                .Texture2DArray = { .FirstArraySlice = cube_face_idx, .ArraySize = 1 },
+                .Texture2DArray = {
+                    .MipSlice = target_mip_level,
+                    .FirstArraySlice = cube_face_idx,
+                    .ArraySize = 1,
+                },
             }),
             cube_face_rtv
         );
@@ -540,6 +547,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     // Create temporary pipelines for generating cube textures content (env., irradiance, etc.).
     graphics::PIPELINE_HANDLE generate_env_texture_pso = {};
     graphics::PIPELINE_HANDLE generate_irradiance_texture_pso = {};
+    graphics::PIPELINE_HANDLE generate_prefiltered_env_texture_pso = {};
     {
         D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
             .BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT),
@@ -565,6 +573,12 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         desc.VS = { vs.data(), vs.size() };
         desc.PS = { ps.data(), ps.size() };
         generate_irradiance_texture_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
+
+        vs = library::Load_File("data/shaders/generate_prefiltered_env_texture_vs_ps.vs.cso");
+        ps = library::Load_File("data/shaders/generate_prefiltered_env_texture_vs_ps.ps.cso");
+        desc.VS = { vs.data(), vs.size() };
+        desc.PS = { ps.data(), ps.size() };
+        generate_prefiltered_env_texture_pso = graphics::Create_Graphics_Shader_Pipeline(gr, &desc);
     }
 
     library::MIPMAP_GENERATOR mipgen_rgba8 = {};
@@ -664,7 +678,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         2,
         graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, equirectangular_texture_srv)
     );
-    Draw_To_Cube_Texture(gr, demo->env_texture, env_texture_resolution);
+    Draw_To_Cube_Texture(gr, demo->env_texture, 0);
 
     // Generate irradiance texture map.
     graphics::Set_Pipeline_State(gr, generate_irradiance_texture_pso);
@@ -682,7 +696,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         2,
         graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->env_texture_srv)
     );
-    Draw_To_Cube_Texture(gr, demo->irradiance_texture, irradiance_texture_resolution);
+    Draw_To_Cube_Texture(gr, demo->irradiance_texture, 0);
 
     library::Generate_Mipmaps(&mipgen_rgba16f, gr, demo->env_texture);
     library::Generate_Mipmaps(&mipgen_rgba16f, gr, demo->irradiance_texture);
@@ -696,6 +710,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     library::Deinit_Mipmap_Generator(&mipgen_rgba16f, gr);
     graphics::Release_Pipeline(gr, generate_env_texture_pso);
     graphics::Release_Pipeline(gr, generate_irradiance_texture_pso);
+    graphics::Release_Pipeline(gr, generate_prefiltered_env_texture_pso);
     graphics::Release_Resource(gr, equirectangular_texture);
     graphics::Deallocate_Temp_Cpu_Descriptors(gr, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 

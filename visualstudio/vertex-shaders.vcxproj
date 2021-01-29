@@ -68,6 +68,7 @@
     <FxCompile Include="..\src\shaders\display_texture_vs_ps.hlsl" />
     <FxCompile Include="..\src\shaders\generate_env_texture_vs_ps.hlsl" />
     <FxCompile Include="..\src\shaders\generate_irradiance_texture_vs_ps.hlsl" />
+    <FxCompile Include="..\src\shaders\generate_prefiltered_env_texture_vs_ps.hlsl" />
     <FxCompile Include="..\src\shaders\imgui_vs_ps.hlsl" />
     <FxCompile Include="..\src\shaders\mesh_debug_vs_ps.hlsl" />
     <FxCompile Include="..\src\shaders\mesh_vs_ps.hlsl" />
