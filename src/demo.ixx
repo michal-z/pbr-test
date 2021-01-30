@@ -582,6 +582,34 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         }),
         demo->prefiltered_env_texture_srv
     );
+    // Create BRDF integration texture.
+    demo->brdf_integration_texture = graphics::Create_Committed_Resource(
+        gr,
+        D3D12_HEAP_TYPE_DEFAULT,
+        D3D12_HEAP_FLAG_NONE,
+        Get_Const_Ptr<D3D12_RESOURCE_DESC>({
+            .Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+            .Width = brdf_integration_texture_resolution,
+            .Height = brdf_integration_texture_resolution,
+            .DepthOrArraySize = 1,
+            .MipLevels = 1,
+            .Format = DXGI_FORMAT_R16G16_FLOAT,
+            .SampleDesc = { .Count = 1 },
+            .Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS
+        }),
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        NULL
+    );
+    demo->brdf_integration_texture_srv = graphics::Allocate_Cpu_Descriptors(
+        gr,
+        D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+        1
+    );
+    gr->device->CreateShaderResourceView(
+        graphics::Get_Resource(gr, demo->brdf_integration_texture),
+        NULL,
+        demo->brdf_integration_texture_srv
+    );
 
     // Create temporary pipelines for generating cube textures content (env., irradiance, etc.).
     graphics::PIPELINE_HANDLE generate_env_texture_pso = {};
@@ -773,6 +801,32 @@ bool Init_Demo_State(DEMO_STATE* demo) {
         Draw_To_Cube_Texture(gr, demo->prefiltered_env_texture, mip_level);
     }
 
+    // Generate BRDF integration texture.
+    {
+        const D3D12_CPU_DESCRIPTOR_HANDLE uav = graphics::Allocate_Cpu_Temp_Descriptors(
+            gr,
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+            1
+        );
+        gr->device->CreateUnorderedAccessView(
+            graphics::Get_Resource(gr, demo->brdf_integration_texture),
+            NULL,
+            NULL,
+            uav
+        );
+        graphics::Set_Pipeline_State(gr, generate_brdf_integration_texture_pso);
+        gr->cmdlist->SetComputeRootDescriptorTable(0, graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, uav));
+        const U32 num_groups = brdf_integration_texture_resolution / 8;
+        gr->cmdlist->Dispatch(num_groups, num_groups, 1);
+        graphics::Add_Transition_Barrier(
+            gr,
+            demo->brdf_integration_texture,
+            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+        );
+        graphics::Flush_Resource_Barriers(gr);
+        graphics::Deallocate_Cpu_Temp_Descriptors(gr, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    }
+
     // Flush commands and wait for GPU to complete them.
     graphics::Flush_Gpu_Commands(gr);
     graphics::Finish_Gpu_Commands(gr);
@@ -812,6 +866,7 @@ void Deinit_Demo_State(DEMO_STATE* demo) {
     graphics::Release_Resource(gr, demo->env_texture);
     graphics::Release_Resource(gr, demo->irradiance_texture);
     graphics::Release_Resource(gr, demo->prefiltered_env_texture);
+    graphics::Release_Resource(gr, demo->brdf_integration_texture);
     for (U32 i = 0; i < eastl::size(demo->mesh_textures); ++i) {
         graphics::Release_Resource(gr, demo->mesh_textures[i]);
     }
