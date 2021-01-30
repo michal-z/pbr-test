@@ -16,6 +16,7 @@ struct DRAW_COMMAND {
 struct GLOBALS {
     XMFLOAT4X4 world_to_clip;
     U32 draw_mode;
+    XMFLOAT3 camera_position;
 };
 
 struct RENDERABLE_CONSTANTS {

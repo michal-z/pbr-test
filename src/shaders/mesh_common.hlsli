@@ -6,8 +6,15 @@
     "RootConstants(b0, num32BitConstants = 3, visibility = SHADER_VISIBILITY_VERTEX), " \
     "CBV(b1), " \
     "DescriptorTable(SRV(t0, numDescriptors = 3), visibility = SHADER_VISIBILITY_VERTEX), " \
-    "DescriptorTable(SRV(t4, numDescriptors = 4), visibility = SHADER_VISIBILITY_PIXEL), " \
-    "StaticSampler(s0, filter = FILTER_MIN_MAG_MIP_LINEAR, visibility = SHADER_VISIBILITY_PIXEL)"
+    "DescriptorTable(SRV(t3, numDescriptors = 7), visibility = SHADER_VISIBILITY_PIXEL), " \
+    "StaticSampler(" \
+    "   s0, " \
+    "   filter = FILTER_MIN_MAG_MIP_LINEAR, " \
+    "   addressU = TEXTURE_ADDRESS_BORDER, " \
+    "   addressV = TEXTURE_ADDRESS_BORDER, " \
+    "   addressW = TEXTURE_ADDRESS_BORDER, " \
+    "   visibility = SHADER_VISIBILITY_PIXEL" \
+    ")"
 
 ConstantBuffer<DRAW_COMMAND> cbv_draw_cmd : register(b0);
 ConstantBuffer<GLOBALS> cbv_glob : register(b1);
@@ -16,6 +23,13 @@ StructuredBuffer<VERTEX> srv_vertices : register(t0);
 Buffer<U32> srv_indices : register(t1);
 StructuredBuffer<RENDERABLE_CONSTANTS> srv_const_renderables : register(t2);
 
-Texture2D srv_mesh_textures[4] : register(t4);
+Texture2D srv_ao_texture : register(t3);
+Texture2D srv_base_color_texture : register(t4);
+Texture2D srv_metallic_roughness_texture : register(t5);
+Texture2D srv_normal_texture : register(t6);
+
+TextureCube srv_irradiance_texture : register(t7);
+TextureCube srv_prefiltered_env_texture : register(t8);
+Texture2D srv_brdf_integration_texture : register(t9);
 
 SamplerState sam_linear : register(s0);

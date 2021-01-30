@@ -993,6 +993,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
         GLOBALS* globals = (GLOBALS*)cpu_addr;
         XMStoreFloat4x4(&globals->world_to_clip, XMMatrixTranspose(world_to_clip));
         globals->draw_mode = demo->draw_mode;
+        globals->camera_position = demo->camera.position;
     }
     // Upload 'RENDERABLE_CONSTANTS' data.
     {
@@ -1041,6 +1042,9 @@ void Update_Demo_State(DEMO_STATE* demo) {
         (U32)eastl::size(demo->mesh_textures),
         demo->mesh_textures_base_srv
     );
+    graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->irradiance_texture_srv);
+    graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->prefiltered_env_texture_srv);
+    graphics::Copy_Descriptors_To_Gpu_Heap(gr, 1, demo->brdf_integration_texture_srv);
 
     graphics::Set_Pipeline_State(gr, demo->mesh_pso);
     gr->cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
