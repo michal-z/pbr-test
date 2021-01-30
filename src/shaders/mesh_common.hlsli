@@ -3,9 +3,9 @@
 #include "../cpp_hlsl_common.h"
 
 #define ROOT_SIGNATURE \
-    "RootConstants(b0, num32BitConstants = 3, visibility = SHADER_VISIBILITY_VERTEX), " \
+    "RootConstants(b0, num32BitConstants = 3), " \
     "CBV(b1), " \
-    "DescriptorTable(SRV(t0, numDescriptors = 3), visibility = SHADER_VISIBILITY_VERTEX), " \
+    "DescriptorTable(SRV(t0, numDescriptors = 3)), " \
     "DescriptorTable(SRV(t3, numDescriptors = 7), visibility = SHADER_VISIBILITY_PIXEL), " \
     "StaticSampler(" \
     "   s0, " \

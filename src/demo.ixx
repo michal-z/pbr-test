@@ -1024,7 +1024,8 @@ void Update_Demo_State(DEMO_STATE* demo) {
         );
         graphics::Add_Transition_Barrier(
             gr,
-            demo->renderable_const_buffer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE
+            demo->renderable_const_buffer,
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
         );
         graphics::Flush_Resource_Barriers(gr);
     }

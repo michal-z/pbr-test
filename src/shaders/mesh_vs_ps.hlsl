@@ -41,9 +41,8 @@ void Vertex_Shader(
 
     out_position_ndc = mul(XMFLOAT4(v.position, 1.0f), object_to_clip);
     out_position = mul(v.position, (XMFLOAT3X3)object_to_world);
-    out_normal = mul(v.normal, (XMFLOAT3X3)object_to_world);
-    out_tangent.xyz = mul(v.tangent.xyz, (XMFLOAT3X3)object_to_world);
-    out_tangent.w = v.tangent.w;
+    out_normal = v.normal;
+    out_tangent = v.tangent;
     out_uv = v.uv;
 }
 
@@ -56,15 +55,35 @@ void Pixel_Shader(
     XMFLOAT2 uv : _Uv,
     out XMFLOAT4 out_color : SV_Target0
 ) {
-    const XMFLOAT3 v = normalize(cbv_glob.camera_position - position);
-    const XMFLOAT3 n = normalize(normal);
-    const F32 n_dot_v = saturate(dot(n, v));
+    XMFLOAT3 n = normalize(srv_normal_texture.Sample(sam_linear, uv).rgb * 2.0f - 1.0f);
 
-    const XMFLOAT3 base_color = srv_base_color_texture.Sample(sam_linear, uv).rgb;
+    //XMFLOAT3 nn = normalize(normal);
+    //XMFLOAT3 tt = normalize(tangent.xyz - nn * dot(tangent.xyz, nn));
+    //XMFLOAT3 bb = cross(normal, tangent.xyz) * tangent.w;
+    //n = tt * n.x + bb * n.y + nn * n.z;
+
+    normal = normalize(normal);
+    tangent.xyz = normalize(tangent.xyz);
+    const XMFLOAT3 bitangent = normalize(cross(normal, tangent.xyz)) * tangent.w;
+
+    const XMFLOAT3X3 object_to_world =
+        (XMFLOAT3X3)srv_const_renderables[cbv_draw_cmd.renderable_id].object_to_world;
+
+    n = mul(n, XMFLOAT3X3(tangent.xyz, bitangent, normal));
+    n = normalize(mul(n, object_to_world));
+
+    //n = mul(n, XMFLOAT3X3(tangent.xyz, binormal, normal));
+    //n = normalize(mul(n, object_to_world));
+    //n = normalize(mul(normal, object_to_world));
+
+    const XMFLOAT3 base_color = pow(srv_base_color_texture.Sample(sam_linear, uv).rgb, 2.2f);
     const XMFLOAT2 metallic_roughness = srv_metallic_roughness_texture.Sample(sam_linear, uv).rg;
     const F32 ao = srv_ao_texture.Sample(sam_linear, uv).r;
 
-    out_color = XMFLOAT4(ao, ao, ao, 1.0f);
+    const XMFLOAT3 v = normalize(cbv_glob.camera_position - position);
+    const F32 n_dot_v = saturate(dot(n, v));
+
+    out_color = XMFLOAT4(base_color, 1.0f);
 
     /*
     float3 F0 = float3(0.04f, 0.04f, 0.04f);

@@ -26,7 +26,8 @@ void Vertex_Shader(
         position = XMFLOAT4(srv_vertices[vertex_index].position + 0.05f * normalize(tangent.xyz), 1.0f);
     } else if (mode == 5) {
         position = XMFLOAT4(
-            srv_vertices[vertex_index].position + 0.05f * normalize(cross(normal, tangent.xyz)),
+            srv_vertices[vertex_index].position + 0.05f * normalize(cross(normal, tangent.xyz)) *
+            tangent.w,
             1.0f
         );
     }
