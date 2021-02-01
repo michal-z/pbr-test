@@ -5,8 +5,8 @@
 
 // Trowbridge-Reitz GGX normal distribution function.
 F32 Distribution_GGX(XMFLOAT3 n, XMFLOAT3 h, F32 roughness) {
-    const F32 alpha_sq = roughness * roughness;
-    //const F32 alpha_sq = alpha * alpha;
+    const F32 alpha = roughness * roughness;
+    const F32 alpha_sq = alpha * alpha;
     const F32 n_dot_h = dot(n, h);
     const F32 n_dot_h_sq = n_dot_h * n_dot_h;
     const F32 k = n_dot_h_sq * alpha_sq + (1.0f - n_dot_h_sq);
@@ -71,7 +71,7 @@ void Pixel_Shader(
     {
         const XMFLOAT2 mr = srv_metallic_roughness_texture.Sample(sam_linear, uv).rg;
         metallic = mr.r;
-        roughness = mr.g * mr.g;
+        roughness = mr.g;
     }
     const XMFLOAT3 base_color = pow(srv_base_color_texture.Sample(sam_linear, uv).rgb, 2.2f);
     const F32 ao = srv_ao_texture.Sample(sam_linear, uv).r;
@@ -82,6 +82,7 @@ void Pixel_Shader(
     XMFLOAT3 f0 = XMFLOAT3(0.04f, 0.04f, 0.04f);
     f0 = lerp(f0, base_color, metallic);
 
+    /*
     XMFLOAT3 radiance = 0.0f;
     for (U32 light_idx = 0; light_idx < 4; ++light_idx) {
         const XMFLOAT3 light_vec = cbv_glob.light_positions[light_idx].xyz - position;
@@ -102,6 +103,7 @@ void Pixel_Shader(
 
         radiance += (kd * (base_color / PI) + specular) * light_radiance * n_dot_l;
     }
+    */
     const XMFLOAT3 r = reflect(-v, n);
     const XMFLOAT3 f = Fresnel_Schlick_Roughness(n_dot_v, f0, roughness);
 
@@ -124,7 +126,8 @@ void Pixel_Shader(
     const XMFLOAT3 specular = prefiltered_color * (f * env_brdf.x + env_brdf.y);
     const XMFLOAT3 ambient = (kd * diffuse + specular) * ao;
 
-    XMFLOAT3 color = ambient + radiance;
+    XMFLOAT3 color = ambient;// + radiance;
+    color *= 4.0f;
     color = color / (color + 1.0f);
 
     out_color = XMFLOAT4(color, 1.0f);

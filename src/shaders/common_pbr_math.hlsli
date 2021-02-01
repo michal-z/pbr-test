@@ -32,12 +32,11 @@ XMFLOAT3 Importance_Sample_GGX(XMFLOAT2 xi, F32 roughness, XMFLOAT3 n) {
     const XMFLOAT3 tangent_y = cross(n, tangent_x);
 
     // Tangent to world space.
-    return tangent_x * h.x + tangent_y * h.y + n * h.z;
+    return normalize(tangent_x * h.x + tangent_y * h.y + n * h.z);
 }
 
 F32 Geometry_Schlick_GGX(F32 cos_theta, F32 roughness) {
-    //const F32 k = (roughness * roughness) * 0.5f;
-    const F32 k = roughness * 0.5f;
+    const F32 k = (roughness * roughness) * 0.5f;
     return cos_theta / (cos_theta * (1.0f - k) + k);
 }
 
