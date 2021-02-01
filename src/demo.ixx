@@ -843,7 +843,11 @@ bool Init_Demo_State(DEMO_STATE* demo) {
 
     library::Init_Frame_Stats(&demo->frame_stats);
 
-    demo->camera = { .position = XMFLOAT3(0.0f, 3.0f, -3.0f), .pitch = XM_PIDIV4, .yaw = 0.0f };
+    demo->camera = {
+        .position = XMFLOAT3(2.2f, 0.0f, 2.2f),
+        .pitch = 0.0f,
+        .yaw = XM_PI + XM_PIDIV4,
+    };
     demo->mouse = { .cursor_prev_x = 0, .cursor_prev_y = 0 };
     return true;
 }
@@ -893,7 +897,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
         NULL,
         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings
     );
-    ImGui::Checkbox("Draw tangent, normal and bi-normal vectors", &demo->enable_draw_vectors);
+    ImGui::Checkbox("Draw tangent, bitangent and normal vectors", &demo->enable_draw_vectors);
     ImGui::Checkbox("Draw dynamic texture", &demo->enable_dynamic_texture);
     ImGui::Separator();
     ImGui::Text("Draw mode:");
@@ -901,7 +905,7 @@ void Update_Demo_State(DEMO_STATE* demo) {
     ImGui::RadioButton("Draw PBR effect", &demo->draw_mode, 0);
     ImGui::RadioButton("Draw Ambient Occlusion texture", &demo->draw_mode, 1);
     ImGui::RadioButton("Draw Base Color texture", &demo->draw_mode, 2);
-    ImGui::RadioButton("Draw Metallic Roughness texture", &demo->draw_mode, 3);
+    ImGui::RadioButton("Draw Roughness texture", &demo->draw_mode, 3);
     ImGui::RadioButton("Draw Normal texture", &demo->draw_mode, 4);
     ImGui::Unindent();
     ImGui::End();

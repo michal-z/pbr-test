@@ -54,6 +54,20 @@ void Pixel_Shader(
     XMFLOAT2 uv : _Uv,
     out XMFLOAT4 out_color : SV_Target0
 ) {
+    if (cbv_glob.draw_mode == 1) {
+        out_color = pow(srv_ao_texture.Sample(sam_linear, uv), 2.2f);
+        return;
+    } else if (cbv_glob.draw_mode == 2) {
+        out_color = pow(srv_base_color_texture.Sample(sam_linear, uv), 2.2f);
+        return;
+    } else if (cbv_glob.draw_mode == 3) {
+        out_color = pow(srv_metallic_roughness_texture.Sample(sam_linear, uv).g, 2.2f);
+        return;
+    } else if (cbv_glob.draw_mode == 4) {
+        out_color = pow(srv_normal_texture.Sample(sam_linear, uv), 2.2f);
+        return;
+    }
+
     XMFLOAT3 n = normalize(srv_normal_texture.Sample(sam_linear, uv).rgb * 2.0f - 1.0f);
 
     normal = normalize(normal);
@@ -107,8 +121,7 @@ void Pixel_Shader(
     const XMFLOAT3 r = reflect(-v, n);
     const XMFLOAT3 f = Fresnel_Schlick_Roughness(n_dot_v, f0, roughness);
 
-    XMFLOAT3 kd = 1.0f - f;
-    kd *= 1.0f - metallic;
+    const XMFLOAT3 kd = (1.0f - f) * (1.0f - metallic);
 
     const XMFLOAT3 irradiance = srv_irradiance_texture.SampleLevel(sam_linear, n, 0.0f).rgb;
     const XMFLOAT3 prefiltered_color = srv_prefiltered_env_texture.SampleLevel(
@@ -127,8 +140,14 @@ void Pixel_Shader(
     const XMFLOAT3 ambient = (kd * diffuse + specular) * ao;
 
     XMFLOAT3 color = ambient;// + radiance;
-    color *= 4.0f;
-    color = color / (color + 1.0f);
+    color *= 2.0f;
+	const F32 luminance = dot(color, XMFLOAT3(0.2126, 0.7152, 0.0722));
+	const F32 mapped_luminance = (luminance * (1.0 + luminance)) / (1.0 + luminance);
+
+	// Scale color by ratio of average luminances.
+	color = (mapped_luminance / luminance) * color;
+
+    //color = color / (color + 1.0f);
 
     out_color = XMFLOAT4(color, 1.0f);
 }
