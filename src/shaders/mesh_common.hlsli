@@ -7,13 +7,20 @@
     "CBV(b1), " \
     "DescriptorTable(SRV(t0, numDescriptors = 3)), " \
     "DescriptorTable(SRV(t3, numDescriptors = 7), visibility = SHADER_VISIBILITY_PIXEL), " \
-	"StaticSampler(" \
+    "StaticSampler(" \
     "   s0, " \
     "   filter = FILTER_ANISOTROPIC, " \
     "   maxAnisotropy = 16, " \
     "   visibility = SHADER_VISIBILITY_PIXEL" \
+    "), " \
+    "StaticSampler(" \
+    "   s1, " \
+    "   filter = FILTER_MIN_MAG_LINEAR_MIP_POINT, " \
+    "   addressU = TEXTURE_ADDRESS_CLAMP, " \
+    "   addressW = TEXTURE_ADDRESS_CLAMP, " \
+    "   addressV = TEXTURE_ADDRESS_CLAMP, " \
+    "   visibility = SHADER_VISIBILITY_PIXEL" \
     ")"
-
 
 ConstantBuffer<DRAW_COMMAND> cbv_draw_cmd : register(b0);
 ConstantBuffer<GLOBALS> cbv_glob : register(b1);
@@ -32,3 +39,4 @@ TextureCube srv_prefiltered_env_texture : register(t8);
 Texture2D srv_brdf_integration_texture : register(t9);
 
 SamplerState sam_linear : register(s0);
+SamplerState sam_prefiltered_env : register(s1);

@@ -12,8 +12,9 @@
     "   s0, " \
     "   filter = FILTER_MIN_MAG_LINEAR_MIP_POINT, " \
     "   visibility = SHADER_VISIBILITY_PIXEL, " \
-    "   addressU = TEXTURE_ADDRESS_BORDER, " \
-    "   addressV = TEXTURE_ADDRESS_BORDER" \
+    "   addressU = TEXTURE_ADDRESS_CLAMP, " \
+    "   addressV = TEXTURE_ADDRESS_CLAMP, " \
+    "   addressW = TEXTURE_ADDRESS_CLAMP" \
     ")"
 
 struct _GLOBALS {
@@ -72,5 +73,5 @@ void Pixel_Shader(
             total_weight += n_dot_l;
         }
     }
-    out_color = XMFLOAT4(prefiltered_color / total_weight, 1.0f);
+    out_color = XMFLOAT4(prefiltered_color / max(total_weight, 0.001f), 1.0f);
 }

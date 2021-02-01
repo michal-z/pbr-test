@@ -128,9 +128,9 @@ void Pixel_Shader(
 
     const XMFLOAT3 irradiance = srv_irradiance_texture.SampleLevel(sam_linear, n, 0.0f).rgb;
     const XMFLOAT3 prefiltered_color = srv_prefiltered_env_texture.SampleLevel(
-        sam_linear,
+        sam_prefiltered_env,
         r,
-        roughness * 5.0f
+        roughness * 6.0f
     ).rgb;
     const XMFLOAT2 env_brdf = srv_brdf_integration_texture.SampleLevel(
         sam_linear,
