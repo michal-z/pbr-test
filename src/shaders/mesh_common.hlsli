@@ -7,14 +7,13 @@
     "CBV(b1), " \
     "DescriptorTable(SRV(t0, numDescriptors = 3)), " \
     "DescriptorTable(SRV(t3, numDescriptors = 7), visibility = SHADER_VISIBILITY_PIXEL), " \
-    "StaticSampler(" \
+	"StaticSampler(" \
     "   s0, " \
-    "   filter = FILTER_MIN_MAG_MIP_LINEAR, " \
-    "   addressU = TEXTURE_ADDRESS_BORDER, " \
-    "   addressV = TEXTURE_ADDRESS_BORDER, " \
-    "   addressW = TEXTURE_ADDRESS_BORDER, " \
+    "   filter = FILTER_ANISOTROPIC, " \
+    "   maxAnisotropy = 16, " \
     "   visibility = SHADER_VISIBILITY_PIXEL" \
     ")"
+
 
 ConstantBuffer<DRAW_COMMAND> cbv_draw_cmd : register(b0);
 ConstantBuffer<GLOBALS> cbv_glob : register(b1);

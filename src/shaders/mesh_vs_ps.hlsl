@@ -1,13 +1,12 @@
 #include "common.hlsli"
 #include "mesh_common.hlsli"
+#include "common_pbr_math.hlsli"
 #include "../cpp_hlsl_common.h"
-
-#define PI 3.1415926f
 
 // Trowbridge-Reitz GGX normal distribution function.
 F32 Distribution_GGX(XMFLOAT3 n, XMFLOAT3 h, F32 roughness) {
-    const F32 alpha = roughness * roughness;
-    const F32 alpha_sq = alpha * alpha;
+    const F32 alpha_sq = roughness * roughness;
+    //const F32 alpha_sq = alpha * alpha;
     const F32 n_dot_h = dot(n, h);
     const F32 n_dot_h_sq = n_dot_h * n_dot_h;
     const F32 k = n_dot_h_sq * alpha_sq + (1.0f - n_dot_h_sq);
@@ -57,11 +56,6 @@ void Pixel_Shader(
 ) {
     XMFLOAT3 n = normalize(srv_normal_texture.Sample(sam_linear, uv).rgb * 2.0f - 1.0f);
 
-    //XMFLOAT3 nn = normalize(normal);
-    //XMFLOAT3 tt = normalize(tangent.xyz - nn * dot(tangent.xyz, nn));
-    //XMFLOAT3 bb = cross(normal, tangent.xyz) * tangent.w;
-    //n = tt * n.x + bb * n.y + nn * n.z;
-
     normal = normalize(normal);
     tangent.xyz = normalize(tangent.xyz);
     const XMFLOAT3 bitangent = normalize(cross(normal, tangent.xyz)) * tangent.w;
@@ -72,71 +66,66 @@ void Pixel_Shader(
     n = mul(n, XMFLOAT3X3(tangent.xyz, bitangent, normal));
     n = normalize(mul(n, object_to_world));
 
-    //n = mul(n, XMFLOAT3X3(tangent.xyz, binormal, normal));
-    //n = normalize(mul(n, object_to_world));
-    //n = normalize(mul(normal, object_to_world));
-
+    F32 metallic;
+    F32 roughness;
+    {
+        const XMFLOAT2 mr = srv_metallic_roughness_texture.Sample(sam_linear, uv).rg;
+        metallic = mr.r;
+        roughness = mr.g * mr.g;
+    }
     const XMFLOAT3 base_color = pow(srv_base_color_texture.Sample(sam_linear, uv).rgb, 2.2f);
-    const XMFLOAT2 metallic_roughness = srv_metallic_roughness_texture.Sample(sam_linear, uv).rg;
     const F32 ao = srv_ao_texture.Sample(sam_linear, uv).r;
 
     const XMFLOAT3 v = normalize(cbv_glob.camera_position - position);
     const F32 n_dot_v = saturate(dot(n, v));
 
-    out_color = XMFLOAT4(base_color, 1.0f);
+    XMFLOAT3 f0 = XMFLOAT3(0.04f, 0.04f, 0.04f);
+    f0 = lerp(f0, base_color, metallic);
 
-    /*
-    float3 F0 = float3(0.04f, 0.04f, 0.04f);
-    F0 = lerp(F0, Albedo, Metallic);
+    XMFLOAT3 radiance = 0.0f;
+    for (U32 light_idx = 0; light_idx < 4; ++light_idx) {
+        const XMFLOAT3 light_vec = cbv_glob.light_positions[light_idx].xyz - position;
+        const F32 light_attenuation = 1.0f / dot(light_vec, light_vec);
+        const XMFLOAT3 light_radiance = cbv_glob.light_colors[light_idx].rgb * light_attenuation;
+        const XMFLOAT3 l = normalize(light_vec);
+        const XMFLOAT3 h = normalize(l + v);
+        const F32 n_dot_l = saturate(dot(n, l));
+        const F32 h_dot_v = saturate(dot(h, v));
+        const XMFLOAT3 f = Fresnel_Schlick(h_dot_v, f0);
+        const F32 ndf = Distribution_GGX(n, h, roughness);
+        const F32 g = Geometry_Smith(n_dot_l, n_dot_v, (roughness + 1.0f) * 0.5f);
+        const XMFLOAT3 specular = (ndf * g * f) / max(4.0f * n_dot_v * n_dot_l, 0.001f);
 
-    float3 Lo = 0.0f;
-    for (int LightIdx = 0; LightIdx < 4; ++LightIdx)
-    {
-        float3 LightVector = GPerFrameCB.LightPositions[LightIdx].xyz - InPositionWS;
+        const XMFLOAT3 ks = f;
+        XMFLOAT3 kd = 1.0f - ks;
+        kd *= 1.0f - metallic;
 
-        float3 L = normalize(LightVector);
-        float3 H = normalize(L + V);
-        float NoL = saturate(dot(N, L));
-        float HoV = saturate(dot(H, V));
-
-        float Attenuation = 1.0f / dot(LightVector, LightVector);
-        float3 Radiance = GPerFrameCB.LightColors[LightIdx].rgb * Attenuation;
-
-        float3 F = FresnelSchlick(HoV, F0);
-
-        float NDF = DistributionGGX(N, H, Roughness);
-        float G = GeometrySmith(NoL, NoV, (Roughness + 1.0f) * 0.5f);
-
-        float3 Specular = (NDF * G * F) / max(4.0f * NoV * NoL, 0.001f);
-
-        float3 KS = F;
-        float3 KD = 1.0f - KS;
-        KD *= 1.0f - Metallic;
-
-        Lo += (KD * (Albedo / PI) + Specular) * Radiance * NoL;
+        radiance += (kd * (base_color / PI) + specular) * light_radiance * n_dot_l;
     }
+    const XMFLOAT3 r = reflect(-v, n);
+    const XMFLOAT3 f = Fresnel_Schlick_Roughness(n_dot_v, f0, roughness);
 
-    float3 R = reflect(-V, N);
+    XMFLOAT3 kd = 1.0f - f;
+    kd *= 1.0f - metallic;
 
-    float3 F = FresnelSchlickRoughness(NoV, F0, Roughness);
+    const XMFLOAT3 irradiance = srv_irradiance_texture.SampleLevel(sam_linear, n, 0.0f).rgb;
+    const XMFLOAT3 prefiltered_color = srv_prefiltered_env_texture.SampleLevel(
+        sam_linear,
+        r,
+        roughness * 5.0f
+    ).rgb;
+    const XMFLOAT2 env_brdf = srv_brdf_integration_texture.SampleLevel(
+        sam_linear,
+        XMFLOAT2(min(n_dot_v, 0.999f), roughness),
+        0.0f
+    ).rg;
 
-    float3 KD = 1.0f - F;
-    KD *= 1.0f - Metallic;
+    const XMFLOAT3 diffuse = irradiance * base_color;
+    const XMFLOAT3 specular = prefiltered_color * (f * env_brdf.x + env_brdf.y);
+    const XMFLOAT3 ambient = (kd * diffuse + specular) * ao;
 
-    float3 Irradiance = GIrradianceMap.SampleLevel(GSampler, N, 0.0f).rgb;
-    float3 Diffuse = Irradiance * Albedo;
-    float3 PrefilteredColor = GPrefilteredEnvMap.SampleLevel(GSampler, R, Roughness * 5.0f).rgb;
+    XMFLOAT3 color = ambient + radiance;
+    color = color / (color + 1.0f);
 
-    float2 EnvBRDF = GBRDFIntegrationMap.SampleLevel(GSampler, float2(min(NoV, 0.999f), Roughness), 0.0f).rg;
-
-    float3 Specular = PrefilteredColor * (F * EnvBRDF.x + EnvBRDF.y);
-
-    float3 Ambient = (KD * Diffuse + Specular) * AO;
-
-    float3 Color = Ambient + Lo;
-    Color = Color / (Color + 1.0f);
-    Color = pow(Color, 1.0f / 2.2f);
-
-    OutColor = float4(Color, 1.0f);
-    */
+    out_color = XMFLOAT4(color, 1.0f);
 }

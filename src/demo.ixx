@@ -7,7 +7,7 @@ namespace demo {
 
 #include "cpp_hlsl_common.h"
 
-constexpr U32 num_msaa_samples = 8;
+constexpr U32 num_msaa_samples = 1;
 constexpr U32 env_texture_resolution = 512;
 constexpr U32 irradiance_texture_resolution = 64;
 constexpr U32 prefiltered_env_texture_resolution = 256;
@@ -994,6 +994,14 @@ void Update_Demo_State(DEMO_STATE* demo) {
         XMStoreFloat4x4(&globals->world_to_clip, XMMatrixTranspose(world_to_clip));
         globals->draw_mode = demo->draw_mode;
         globals->camera_position = demo->camera.position;
+        globals->light_positions[0] = XMFLOAT4(-8.0f, 1.0f, -8.0f, 1.0f);
+        globals->light_positions[1] = XMFLOAT4(8.0f, 1.0f, -8.0f, 1.0f);
+        globals->light_positions[2] = XMFLOAT4(-8.0f, 1.0f, 8.0f, 1.0f);
+        globals->light_positions[3] = XMFLOAT4(8.0f, 1.0f, 8.0f, 1.0f);
+        globals->light_colors[0] = XMFLOAT4(300.0f, 300.0f, 300.0f, 1.0f);
+        globals->light_colors[1] = XMFLOAT4(300.0f, 300.0f, 300.0f, 1.0f);
+        globals->light_colors[2] = XMFLOAT4(300.0f, 300.0f, 300.0f, 1.0f);
+        globals->light_colors[3] = XMFLOAT4(300.0f, 300.0f, 300.0f, 1.0f);
     }
     // Upload 'RENDERABLE_CONSTANTS' data.
     {
@@ -1148,17 +1156,27 @@ void Update_Demo_State(DEMO_STATE* demo) {
     library::Draw_Gui(&demo->gui, gr);
 
     const auto [back_buffer, back_buffer_rtv] = graphics::Get_Back_Buffer(gr);
-    graphics::Add_Transition_Barrier(gr, back_buffer, D3D12_RESOURCE_STATE_RESOLVE_DEST);
-    graphics::Add_Transition_Barrier(gr, demo->srgb_texture, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
-    graphics::Flush_Resource_Barriers(gr);
 
-    gr->cmdlist->ResolveSubresource(
-        graphics::Get_Resource(gr, back_buffer),
-        0,
-        graphics::Get_Resource(gr, demo->srgb_texture),
-        0,
-        DXGI_FORMAT_R8G8B8A8_UNORM
-    );
+    if constexpr (num_msaa_samples > 1) {
+        graphics::Add_Transition_Barrier(gr, back_buffer, D3D12_RESOURCE_STATE_RESOLVE_DEST);
+        graphics::Add_Transition_Barrier(gr, demo->srgb_texture, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
+        graphics::Flush_Resource_Barriers(gr);
+        gr->cmdlist->ResolveSubresource(
+            graphics::Get_Resource(gr, back_buffer),
+            0,
+            graphics::Get_Resource(gr, demo->srgb_texture),
+            0,
+            DXGI_FORMAT_R8G8B8A8_UNORM
+        );
+    } else {
+        graphics::Add_Transition_Barrier(gr, back_buffer, D3D12_RESOURCE_STATE_COPY_DEST);
+        graphics::Add_Transition_Barrier(gr, demo->srgb_texture, D3D12_RESOURCE_STATE_COPY_SOURCE);
+        graphics::Flush_Resource_Barriers(gr);
+        gr->cmdlist->CopyResource(
+            graphics::Get_Resource(gr, back_buffer),
+            graphics::Get_Resource(gr, demo->srgb_texture)
+        );
+    }
     graphics::Add_Transition_Barrier(gr, back_buffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
     graphics::Flush_Resource_Barriers(gr);
 

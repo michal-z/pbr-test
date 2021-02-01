@@ -17,6 +17,8 @@ struct GLOBALS {
     XMFLOAT4X4 world_to_clip;
     U32 draw_mode;
     XMFLOAT3 camera_position;
+    XMFLOAT4 light_positions[4];
+    XMFLOAT4 light_colors[4];
 };
 
 struct RENDERABLE_CONSTANTS {

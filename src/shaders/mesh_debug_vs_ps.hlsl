@@ -46,7 +46,7 @@ void Pixel_Shader(
         out_color = XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f);
     } else if (mode == 2 || mode == 3) { // Tangent 
         out_color = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
-    } else { // Bi-normal
+    } else { // Bitangent
         out_color = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
     }
 }
