@@ -61,9 +61,12 @@ void Pixel_Shader(
         out_color = pow(srv_base_color_texture.Sample(sam_linear, uv), 2.2f);
         return;
     } else if (cbv_glob.draw_mode == 3) {
-        out_color = pow(srv_metallic_roughness_texture.Sample(sam_linear, uv).g, 2.2f);
+        out_color = pow(srv_metallic_roughness_texture.Sample(sam_linear, uv).b, 2.2f);
         return;
     } else if (cbv_glob.draw_mode == 4) {
+        out_color = pow(srv_metallic_roughness_texture.Sample(sam_linear, uv).g, 2.2f);
+        return;
+    } else if (cbv_glob.draw_mode == 5) {
         out_color = pow(srv_normal_texture.Sample(sam_linear, uv), 2.2f);
         return;
     }
@@ -83,7 +86,7 @@ void Pixel_Shader(
     F32 metallic;
     F32 roughness;
     {
-        const XMFLOAT2 mr = srv_metallic_roughness_texture.Sample(sam_linear, uv).rg;
+        const XMFLOAT2 mr = srv_metallic_roughness_texture.Sample(sam_linear, uv).bg;
         metallic = mr.r;
         roughness = mr.g;
     }
@@ -140,7 +143,7 @@ void Pixel_Shader(
     const XMFLOAT3 ambient = (kd * diffuse + specular) * ao;
 
     XMFLOAT3 color = ambient;// + radiance;
-    color *= 2.0f;
+    color *= 3.0f;
 	const F32 luminance = dot(color, XMFLOAT3(0.2126, 0.7152, 0.0722));
 	const F32 mapped_luminance = (luminance * (1.0 + luminance)) / (1.0 + luminance);
 

@@ -905,8 +905,9 @@ void Update_Demo_State(DEMO_STATE* demo) {
     ImGui::RadioButton("Draw PBR effect", &demo->draw_mode, 0);
     ImGui::RadioButton("Draw Ambient Occlusion texture", &demo->draw_mode, 1);
     ImGui::RadioButton("Draw Base Color texture", &demo->draw_mode, 2);
-    ImGui::RadioButton("Draw Roughness texture", &demo->draw_mode, 3);
-    ImGui::RadioButton("Draw Normal texture", &demo->draw_mode, 4);
+    ImGui::RadioButton("Draw Metallic texture", &demo->draw_mode, 3);
+    ImGui::RadioButton("Draw Roughness texture", &demo->draw_mode, 4);
+    ImGui::RadioButton("Draw Normal texture", &demo->draw_mode, 5);
     ImGui::Unindent();
     ImGui::End();
 
