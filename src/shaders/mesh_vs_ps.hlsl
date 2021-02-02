@@ -130,7 +130,7 @@ void Pixel_Shader(
     const XMFLOAT3 prefiltered_color = srv_prefiltered_env_texture.SampleLevel(
         sam_prefiltered_env,
         r,
-        roughness * 6.0f
+        roughness * 6.0f // roughness * (num_mip_levels - 1.0f)
     ).rgb;
     const XMFLOAT2 env_brdf = srv_brdf_integration_texture.SampleLevel(
         sam_linear,
@@ -144,13 +144,7 @@ void Pixel_Shader(
 
     XMFLOAT3 color = ambient;// + radiance;
     color *= 3.0f;
-	const F32 luminance = dot(color, XMFLOAT3(0.2126, 0.7152, 0.0722));
-	const F32 mapped_luminance = (luminance * (1.0 + luminance)) / (1.0 + luminance);
-
-	// Scale color by ratio of average luminances.
-	color = (mapped_luminance / luminance) * color;
-
-    //color = color / (color + 1.0f);
+    color = color / (color + 1.0f);
 
     out_color = XMFLOAT4(color, 1.0f);
 }
