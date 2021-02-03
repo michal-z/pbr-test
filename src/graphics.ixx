@@ -70,7 +70,7 @@ TUPLE<U8*, D3D12_GPU_VIRTUAL_ADDRESS> Allocate_Gpu_Memory(
     return { cpu_addr, gpu_addr };
 }
 
-export struct DESCRIPTOR {
+struct DESCRIPTOR {
     D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle;
     D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle;
 };
@@ -126,7 +126,7 @@ DESCRIPTOR Allocate_Descriptors(DESCRIPTOR_HEAP* heap, U32 num_descriptors) {
     return { cpu_handle, gpu_handle };
 }
 
-export struct RESOURCE_HANDLE {
+export struct alignas(4) RESOURCE_HANDLE {
     U16 index;
     U16 generation;
 };
@@ -200,7 +200,7 @@ RESOURCE* Get_Resource_Info(RESOURCE_POOL* pool, RESOURCE_HANDLE handle) {
     return resource;
 }
 
-export struct PIPELINE_HANDLE {
+export struct alignas(4) PIPELINE_HANDLE {
     U16 index;
     U16 generation;
 };
@@ -804,7 +804,7 @@ export void Deallocate_Cpu_Temp_Descriptors(
     }
 }
 
-export DESCRIPTOR Allocate_Gpu_Descriptors(CONTEXT* gr, U32 num) {
+DESCRIPTOR Allocate_Gpu_Descriptors(CONTEXT* gr, U32 num) {
     assert(gr && num > 0);
     return Allocate_Descriptors(&gr->cbv_srv_uav_gpu_heaps[gr->frame_index], num);
 }

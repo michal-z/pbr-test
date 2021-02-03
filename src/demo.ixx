@@ -10,8 +10,8 @@ namespace demo {
 constexpr U32 num_msaa_samples = 1;
 constexpr U32 env_texture_resolution = 512;
 constexpr U32 irradiance_texture_resolution = 64;
-constexpr U32 prefiltered_env_texture_resolution = 512;
-constexpr U32 prefiltered_env_texture_num_mip_levels = 7;
+constexpr U32 prefiltered_env_texture_resolution = 256;
+constexpr U32 prefiltered_env_texture_num_mip_levels = 6;
 constexpr U32 brdf_integration_texture_resolution = 512;
 
 struct MESH {
