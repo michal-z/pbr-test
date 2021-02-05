@@ -125,6 +125,7 @@ void Draw_To_Cube_Texture(
     graphics::RESOURCE_HANDLE texture,
     U32 target_mip_level
 ) {
+    assert(gr);
     const D3D12_RESOURCE_DESC desc = graphics::Get_Resource_Desc(gr, texture);
     assert(target_mip_level < desc.MipLevels);
     const U32 texture_width = (U32)desc.Width >> target_mip_level;
@@ -190,6 +191,7 @@ template<typename T> void Upload_To_Gpu(
     const VECTOR<T>* data,
     D3D12_RESOURCE_STATES state
 ) {
+    assert(gr && data);
     const auto [span, buffer, buffer_offset] = graphics::Allocate_Upload_Buffer_Region<T>(
         gr,
         (U32)data->size()

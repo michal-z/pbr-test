@@ -162,7 +162,7 @@ void Deinit_Resource_Pool(RESOURCE_POOL* pool) {
             // Release internally created swapbuffers.
             MZ_SAFE_RELEASE(pool->resources[i].raw);
         } else {
-            // Verify that all resources has been released by a user.
+            // Verify that all resources have been released by a user.
             assert(pool->resources[i].raw == NULL);
         }
     }
@@ -232,7 +232,7 @@ void Deinit_Pipeline_Pool(PIPELINE_POOL* pool) {
     assert(pool);
 
     for (U32 i = 0; i < (max_num_pipelines + 1); ++i) {
-        // Verify that all pipelines has been released by a user.
+        // Verify that all pipelines have been released by a user.
         assert(pool->pipelines[i].pso == NULL);
         assert(pool->pipelines[i].root_signature == NULL);
         pool->pipelines[i] = {};
