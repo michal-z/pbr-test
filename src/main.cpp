@@ -7,6 +7,7 @@ void* operator new[](size_t size) {
     return ptr;
 }
 
+// Used by EASTL.
 void* operator new[](
     size_t size,
     const char* /* name */,
@@ -20,6 +21,7 @@ void* operator new[](
     return ptr;
 }
 
+// Used by EASTL.
 void* operator new[](
     size_t size,
     size_t alignment,
