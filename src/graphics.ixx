@@ -1332,7 +1332,7 @@ export void Update_Tex2D_Subresource(
 
 export TUPLE<RESOURCE_HANDLE, D3D12_CPU_DESCRIPTOR_HANDLE> Create_Texture_From_File(
     CONTEXT* gr,
-    LPCWSTR filename
+    const WCHAR* filename
 ) {
     assert(gr && filename);
 

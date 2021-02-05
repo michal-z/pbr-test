@@ -77,7 +77,7 @@ struct DEMO_STATE {
 };
 
 void Add_Mesh(
-    LPCSTR filename,
+    const CHAR* filename,
     VECTOR<MESH>* meshes,
     VECTOR<VERTEX>* all_vertices,
     VECTOR<U32>* all_indices
@@ -106,7 +106,7 @@ void Add_Mesh(
 }
 
 void Create_And_Upload_Texture(
-    LPCWSTR filename,
+    const WCHAR* filename,
     graphics::CONTEXT* gr,
     library::MIPMAP_GENERATOR* mipgen,
     graphics::RESOURCE_HANDLE* texture,
@@ -318,7 +318,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
     VECTOR<VERTEX> all_vertices;
     VECTOR<U32> all_indices;
     {
-        const LPCSTR mesh_paths[] = {
+        const CHAR* mesh_paths[] = {
             "data/SciFiHelmet/SciFiHelmet.gltf",
             "data/cube.gltf",
         };
@@ -670,7 +670,7 @@ bool Init_Demo_State(DEMO_STATE* demo) {
 
     // Create and upload textures.
     {
-        LPCWSTR names[] = {
+        const WCHAR* names[] = {
             L"data/SciFiHelmet/SciFiHelmet_AmbientOcclusion.png",
             L"data/SciFiHelmet/SciFiHelmet_BaseColor.png",
             L"data/SciFiHelmet/SciFiHelmet_MetallicRoughness.png",

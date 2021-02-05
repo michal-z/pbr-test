@@ -97,7 +97,7 @@ LRESULT CALLBACK Process_Window_Message(HWND window, UINT message, WPARAM wparam
     return DefWindowProc(window, message, wparam, lparam);
 }
 
-export HWND Create_Window(LPCSTR name, U32 width, U32 height, bool init_imgui) {
+export HWND Create_Window(const CHAR* name, U32 width, U32 height, bool init_imgui) {
     if (init_imgui) {
         ImGui::CreateContext();
     }
@@ -131,7 +131,7 @@ export HWND Create_Window(LPCSTR name, U32 width, U32 height, bool init_imgui) {
     return window;
 }
 
-export VECTOR<U8> Load_File(LPCSTR filename) {
+export VECTOR<U8> Load_File(const CHAR* filename) {
     assert(filename);
     FILE* file = fopen(filename, "rb");
     if (!file) {
@@ -152,7 +152,7 @@ export VECTOR<U8> Load_File(LPCSTR filename) {
 }
 
 export void Load_Mesh(
-    LPCSTR filename,
+    const CHAR* filename,
     VECTOR<U32>* indices,
     VECTOR<XMFLOAT3>* positions,
     VECTOR<XMFLOAT3>* normals,
